@@ -6,7 +6,7 @@
   .minifier {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
   }
 
   .loading {
@@ -18,7 +18,7 @@
   .panels {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
   }
 
   @media (max-width: 768px) {
@@ -30,10 +30,17 @@
   .panel {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-sm);
   }
 
-  .panel label {
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 1.75rem;
+  }
+
+  .panel-header label {
     font-weight: 600;
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
@@ -41,17 +48,37 @@
     letter-spacing: 0.05em;
   }
 
+  .copy-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .copy-btn:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-alpha);
+  }
+
+  .copy-btn:active {
+    transform: scale(0.98);
+  }
+
   .panel textarea {
     width: 100%;
     min-height: 300px;
-    padding: var(--spacing-sm);
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-surface);
     color: var(--color-text);
     font-family: var(--font-mono);
     font-size: var(--font-size-sm);
-    line-height: 1.5;
+    line-height: 1.6;
     resize: vertical;
   }
 
@@ -66,13 +93,32 @@
   }
 
   .error {
-    padding: var(--spacing-sm);
+    padding: var(--spacing-md);
     border-radius: var(--radius-md);
     background: var(--color-error-bg);
     color: var(--color-error);
     font-family: var(--font-mono);
     font-size: var(--font-size-sm);
     white-space: pre-wrap;
+  }
+
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+    font-size: var(--font-size-sm);
+  }
+
+  .stats span {
+    color: var(--color-text-muted);
+  }
+
+  .stats span:last-child {
+    color: var(--color-success);
+    font-weight: 600;
   }
 
   .controls {
@@ -87,32 +133,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--spacing-sm);
-  }
-
-  .preset {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    font-size: var(--font-size-sm);
-  }
-
-  .preset span {
-    color: var(--color-text-muted);
-  }
-
-  .preset select {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font-size: var(--font-size-sm);
-    cursor: pointer;
-  }
-
-  .preset select:focus {
-    outline: none;
-    border-color: var(--color-primary);
   }
 
   .option {
@@ -138,46 +158,29 @@
     background: var(--color-primary-alpha);
   }
 
-  .option input {
+  .option input[type="checkbox"] {
     accent-color: var(--color-primary);
   }
 
-  .actions button {
-    padding: var(--spacing-xs) var(--spacing-md);
-    border: none;
-    border-radius: var(--radius-sm);
-    background: var(--color-primary);
-    color: var(--color-primary-text);
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
+  .preset-option {
+    gap: var(--spacing-sm);
   }
 
-  .actions button:hover {
-    background: var(--color-primary-hover);
-  }
-
-  .actions button:active {
-    transform: scale(0.98);
-  }
-
-  .stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-md);
-    padding: var(--spacing-sm);
-    border-radius: var(--radius-md);
-    background: var(--color-surface-alt);
-    font-size: var(--font-size-sm);
-  }
-
-  .stats span {
+  .preset-option span {
     color: var(--color-text-muted);
   }
 
-  .stats span:last-child {
-    color: var(--color-success);
-    font-weight: 600;
+  .preset-option select {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+
+  .preset-option select:focus {
+    outline: none;
   }
 }

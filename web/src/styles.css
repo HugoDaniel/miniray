@@ -76,7 +76,7 @@
   }
 
   header {
-    padding: var(--spacing-lg) var(--spacing-md);
+    padding: var(--spacing-xl) var(--spacing-lg);
     text-align: center;
   }
 
@@ -87,7 +87,7 @@
   }
 
   header p {
-    margin-top: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
@@ -97,7 +97,7 @@
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
-    padding: var(--spacing-md);
+    padding: 0 var(--spacing-lg) var(--spacing-xl);
   }
 
   footer {
@@ -105,7 +105,7 @@
     justify-content: center;
     align-items: center;
     gap: var(--spacing-sm);
-    padding: var(--spacing-md);
+    padding: var(--spacing-lg) var(--spacing-md);
     font-size: var(--font-size-sm);
   }
 

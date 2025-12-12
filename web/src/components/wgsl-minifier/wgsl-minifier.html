@@ -7,7 +7,9 @@
     <div data-ref="content" class="content" hidden>
       <div class="panels">
         <div class="panel">
-          <label for="input">Input</label>
+          <div class="panel-header">
+            <label for="input">Input</label>
+          </div>
           <textarea
             data-ref="input"
             id="input"
@@ -17,7 +19,10 @@
         </div>
 
         <div class="panel">
-          <label for="output">Output</label>
+          <div class="panel-header">
+            <label for="output">Output</label>
+            <button class="copy-btn" onclick="['copy']" data-ref="copyBtn">Copy</button>
+          </div>
           <textarea
             data-ref="output"
             id="output"
@@ -29,15 +34,14 @@
 
       <div data-ref="error" class="error" hidden></div>
 
+      <div data-ref="stats" class="stats" hidden>
+        <span data-ref="original"></span>
+        <span data-ref="minified"></span>
+        <span data-ref="savings"></span>
+      </div>
+
       <div class="controls">
         <div class="options">
-          <label class="preset">
-            <span>Preset</span>
-            <select data-ref="preset" onchange="['presetChange']">
-              <option value="default">Default</option>
-              <option value="compute.toys">compute.toys</option>
-            </select>
-          </label>
           <label class="option">
             <input type="checkbox" data-ref="whitespace" onchange="['optionChange']" />
             Whitespace
@@ -56,15 +60,13 @@
           </label>
         </div>
 
-        <div class="actions">
-          <button onclick="['copy']" data-ref="copyBtn">Copy</button>
-        </div>
-      </div>
-
-      <div data-ref="stats" class="stats" hidden>
-        <span data-ref="original"></span>
-        <span data-ref="minified"></span>
-        <span data-ref="savings"></span>
+        <label class="option preset-option">
+          <span>Preset</span>
+          <select data-ref="preset" onchange="['presetChange']">
+            <option value="default">Default</option>
+            <option value="compute.toys">compute.toys</option>
+          </select>
+        </label>
       </div>
     </div>
   </div>
