@@ -1,0 +1,12 @@
+EnableDirective
+---------- /out.wgsl ----------
+enable f16;enable chromium_experimental_dp4a;
+================================================================================
+DiagnosticDirective
+---------- /out.wgsl ----------
+diagnostic(off,derivative_uniformity);
+================================================================================
+ConstAssert
+---------- /out.wgsl ----------
+const SIZE=64;const_assert SIZE>0;const_assert SIZE<=256;
+================================================================================

@@ -1,0 +1,32 @@
+LocalVariables
+---------- /out.wgsl ----------
+fn d()->f32{let a=1.0;let b=2.0;let c=a+b;return c;}
+================================================================================
+FunctionParameters
+---------- /out.wgsl ----------
+fn c(a:f32,b:f32)->f32{return a+b;}
+================================================================================
+HelperFunctions
+---------- /out.wgsl ----------
+fn a(b:f32)->f32{return b*2.0;}fn d(c:f32)->f32{return a(c)+1.0;}
+================================================================================
+EntryPointPreserved
+---------- /out.wgsl ----------
+fn c(a:f32)->f32{return a*2.0;}@vertex fn vertexMain(@location(0) b:vec4f)->@builtin(position) vec4f{return b;}
+================================================================================
+StructRenaming
+---------- /out.wgsl ----------
+struct b{fieldOne:f32,fieldTwo:f32}fn c()->f32{var a:b;a.fieldOne=1.0;a.fieldTwo=2.0;return a.fieldOne+a.fieldTwo;}
+================================================================================
+ConstRenaming
+---------- /out.wgsl ----------
+const a=42;const b=a*2;fn c()->i32{return a+b;}
+================================================================================
+SameScopedNames
+---------- /out.wgsl ----------
+fn c()->f32{let a=1.0;return a;}fn d()->f32{let b=2.0;return b;}
+================================================================================
+NestedScopes
+---------- /out.wgsl ----------
+fn c()->f32{let a=1.0;if true{let b=2.0;return a+b;}return a;}
+================================================================================

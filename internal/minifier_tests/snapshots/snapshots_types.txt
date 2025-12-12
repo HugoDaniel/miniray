@@ -1,0 +1,24 @@
+ScalarTypes
+---------- /out.wgsl ----------
+var a:bool;var b:i32;var c:u32;var d:f32;var e:f16;
+================================================================================
+VectorTypes
+---------- /out.wgsl ----------
+var a:vec2f;var b:vec3f;var c:vec4f;var d:vec2<f32>;var e:vec3<i32>;var f:vec4<u32>;
+================================================================================
+MatrixTypes
+---------- /out.wgsl ----------
+var a:mat2x2f;var b:mat3x3f;var c:mat4x4f;var d:mat2x3<f32>;var e:mat3x4<f32>;
+================================================================================
+ArrayTypes
+---------- /out.wgsl ----------
+var a:array<f32>;var b:array<vec3f>;
+================================================================================
+TextureTypes
+---------- /out.wgsl ----------
+var a:texture_2d<f32>;var b:texture_3d<f32>;var c:texture_cube<f32>;var d:texture_2d_array<f32>;var e:texture_storage_2d<rgba8unorm,write>;
+================================================================================
+SamplerTypes
+---------- /out.wgsl ----------
+var a:sampler;var b:sampler_comparison;
+================================================================================

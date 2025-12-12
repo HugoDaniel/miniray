@@ -1,0 +1,12 @@
+VertexShaderWithStructs
+---------- /out.wgsl ----------
+struct Uniforms{modelViewProjection:mat4x4f}struct VertexInput{@location(0) position:vec4f,@location(1) uv:vec2f}struct VertexOutput{@builtin(position) position:vec4f,@location(0) uv:vec2f}@group(0) @binding(0) var<uniform> uniforms:Uniforms;@vertex fn main(input:VertexInput)->VertexOutput{var output:VertexOutput;output.position=uniforms.modelViewProjection*input.position;output.uv=input.uv;return output;}
+================================================================================
+FragmentShaderWithTexture
+---------- /out.wgsl ----------
+@group(0) @binding(1) var textureSampler:sampler;@group(0) @binding(2) var texture:texture_2d<f32>;@fragment fn main(@location(0) uv:vec2f)->@location(0) vec4f{return textureSample(texture,textureSampler,uv);}
+================================================================================
+ComputeShaderSimple
+---------- /out.wgsl ----------
+@group(0) @binding(0) var<storage,read_write> data:array<f32>;@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3u){let idx=id.x;data[idx]=data[idx]*2.0;}
+================================================================================

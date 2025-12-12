@@ -1,0 +1,16 @@
+MangledUniform
+---------- /out.wgsl ----------
+@group(0) @binding(0) var<uniform> a:f32;fn b()->f32{return a*2.0;}
+================================================================================
+MangledMultipleUniforms
+---------- /out.wgsl ----------
+@group(0) @binding(0) var<uniform> a:mat4x4f;@group(0) @binding(1) var<uniform> b:mat4x4f;fn d(c:vec4f)->vec4f{return b*a*c;}
+================================================================================
+MangledStorage
+---------- /out.wgsl ----------
+@group(0) @binding(0) var<storage,read_write> a:array<f32>;fn c(b:u32)->f32{return a[b];}
+================================================================================
+MangledVsAliased
+---------- /out.wgsl ----------
+@group(0) @binding(0) var<uniform> a:f32;fn b()->f32{return a;}fn c()->f32{return a;}fn d()->f32{return a;}
+================================================================================
