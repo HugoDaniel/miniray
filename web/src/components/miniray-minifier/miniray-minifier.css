@@ -1,5 +1,5 @@
 @layer components {
-  wgsl-minifier {
+  miniray-minifier {
     display: block;
   }
 

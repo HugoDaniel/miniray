@@ -9,7 +9,7 @@ mkdir -p dist
 cp src/styles.css src/main.js dist/
 
 # Copy component JS with fixed imports (flatten the path)
-sed 's|from "../../main.js"|from "./main.js"|g' src/components/wgsl-minifier/wgsl-minifier.js > dist/wgsl-minifier.js
+sed 's|from "../../main.js"|from "./main.js"|g' src/components/miniray-minifier/miniray-minifier.js > dist/miniray-minifier.js
 
 # Copy WASM files
 cp -r public/* dist/
@@ -18,8 +18,8 @@ cp -r public/* dist/
 cp node_modules/boredom/dist/boreDOM.full.js dist/boreDOM.js
 
 # Read component template and CSS
-COMPONENT_TEMPLATE=$(cat src/components/wgsl-minifier/wgsl-minifier.html)
-COMPONENT_CSS=$(cat src/components/wgsl-minifier/wgsl-minifier.css)
+COMPONENT_TEMPLATE=$(cat src/components/miniray-minifier/miniray-minifier.html)
+COMPONENT_CSS=$(cat src/components/miniray-minifier/miniray-minifier.css)
 
 # Create index.html with everything inlined/linked properly
 cat > dist/index.html << HTMLEOF
@@ -42,7 +42,7 @@ ${COMPONENT_CSS}
     <p>WGSL Minifier - Compress your WebGPU shaders</p>
   </header>
   <main>
-    <wgsl-minifier></wgsl-minifier>
+    <miniray-minifier></miniray-minifier>
 
     <section class="cli-section">
       <h2>Also available on the command line</h2>
@@ -57,7 +57,7 @@ ${COMPONENT_CSS}
   </footer>
 
   ${COMPONENT_TEMPLATE}
-  <script src="./wgsl-minifier.js" type="module"></script>
+  <script src="./miniray-minifier.js" type="module"></script>
 </body>
 </html>
 HTMLEOF

@@ -2,7 +2,7 @@
 
 WGSL minifier for WebGPU shaders - WebAssembly build.
 
-This package provides a WASM build of the [wgsl-minifier](https://github.com/HugoDaniel/miniray) that runs in browsers and Node.js.
+This package provides a WASM build of the [miniray](https://github.com/HugoDaniel/miniray) that runs in browsers and Node.js.
 
 ## Installation
 
