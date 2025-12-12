@@ -501,3 +501,50 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 		t.Errorf("parse errors: %v", errs)
 	}
 }
+
+// ----------------------------------------------------------------------------
+// Parse Error Tests
+// ----------------------------------------------------------------------------
+
+func TestInvalidTypeErrors(t *testing.T) {
+	// Number used as type should produce error (not hang)
+	expectParseError(t, "struct Foo { x: 12341234 }", "expected type")
+	expectParseError(t, "var x: 999;", "expected type")
+	expectParseError(t, "fn foo(x: 123) {}", "expected type")
+	expectParseError(t, "fn foo() -> 456 {}", "expected type")
+
+	// Invalid type in generic
+	expectParseError(t, "var x: vec3<123>;", "expected type")
+	expectParseError(t, "var x: array<456>;", "expected type")
+}
+
+func TestMissingSemicolonErrors(t *testing.T) {
+	expectParseError(t, "const x = 1", "expected ;")
+	expectParseError(t, "var x: f32", "expected ;")
+}
+
+func TestMissingBraceErrors(t *testing.T) {
+	expectParseError(t, "fn foo() { return;", "expected }")
+	expectParseError(t, "struct Foo { x: f32", "expected }")
+}
+
+func TestInvalidExpressionErrors(t *testing.T) {
+	expectNoParse(t, "const x = ;")
+	expectNoParse(t, "const x = 1 +;")
+}
+
+func TestInvalidStatementInBlock(t *testing.T) {
+	// Garbage inside a function body should error, not loop forever
+	expectNoParse(t, "fn foo() { 12345 }")
+	expectNoParse(t, "fn foo() { !@#$ }")
+}
+
+func TestInvalidSwitchStatement(t *testing.T) {
+	// Missing case/default keyword
+	expectNoParse(t, "fn foo() { switch x { 1: {} } }")
+}
+
+func TestInvalidDirective(t *testing.T) {
+	// Invalid enable directive (missing feature name after comma)
+	expectNoParse(t, "enable f16, ;")
+}
