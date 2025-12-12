@@ -137,6 +137,20 @@ func (p *Parser) expect(kind lexer.TokenKind) (lexer.Token, bool) {
 	tok := p.current()
 	if tok.Kind != kind {
 		p.error(fmt.Sprintf("expected %s, got %s", kind, tok.Kind))
+		// Don't advance here - let caller decide how to recover
+		// This prevents consuming tokens that might be needed for error recovery
+		return tok, false
+	}
+	p.advance()
+	return tok, true
+}
+
+// expectAndSkip is like expect but advances even on error to prevent infinite loops
+func (p *Parser) expectAndSkip(kind lexer.TokenKind) (lexer.Token, bool) {
+	tok := p.current()
+	if tok.Kind != kind {
+		p.error(fmt.Sprintf("expected %s, got %s", kind, tok.Kind))
+		p.advance() // Skip the unexpected token to avoid infinite loop
 		return tok, false
 	}
 	p.advance()
@@ -702,10 +716,16 @@ func (p *Parser) parseEnableDirective() *ast.EnableDirective {
 
 	// Parse feature list
 	for {
+		startPos := p.pos
 		if tok, ok := p.expect(lexer.TokIdent); ok {
 			dir.Features = append(dir.Features, tok.Value)
 		}
 		if !p.match(lexer.TokComma) {
+			break
+		}
+		// Safety check: if we didn't advance (besides the comma), something is wrong
+		if p.pos == startPos+1 && p.current().Kind != lexer.TokIdent {
+			p.error("expected feature name")
 			break
 		}
 	}
@@ -985,6 +1005,7 @@ func (p *Parser) parseStructDecl() *ast.StructDecl {
 	p.expect(lexer.TokLBrace)
 
 	for p.current().Kind != lexer.TokRBrace && p.current().Kind != lexer.TokEOF {
+		startPos := p.pos
 		member := ast.StructMember{}
 		member.Attributes = p.parseAttributes()
 
@@ -999,6 +1020,12 @@ func (p *Parser) parseStructDecl() *ast.StructDecl {
 
 		// Optional trailing comma
 		p.match(lexer.TokComma)
+
+		// Safety check: if we didn't advance, skip a token to prevent infinite loop
+		if p.pos == startPos {
+			p.error("unexpected token in struct")
+			p.advance()
+		}
 	}
 
 	p.expect(lexer.TokRBrace)
@@ -1051,8 +1078,9 @@ func (p *Parser) parseType() ast.Type {
 		return &ast.IdentType{Name: name, Ref: ast.InvalidRef()}
 
 	default:
-		p.error("expected type")
-		return nil
+		p.error("expected type, got " + tok.Value)
+		p.advance() // Skip the unexpected token to avoid infinite loop
+		return &ast.IdentType{Name: "error", Ref: ast.InvalidRef()}
 	}
 }
 
@@ -1761,9 +1789,15 @@ func (p *Parser) parseCompoundStmt() *ast.CompoundStmt {
 
 	stmt := &ast.CompoundStmt{}
 	for p.current().Kind != lexer.TokRBrace && p.current().Kind != lexer.TokEOF {
+		startPos := p.pos
 		s := p.parseStatement()
 		if s != nil {
 			stmt.Stmts = append(stmt.Stmts, s)
+		}
+		// Safety check: if we didn't advance, skip a token to prevent infinite loop
+		if p.pos == startPos {
+			p.error("unexpected token in block")
+			p.advance()
 		}
 	}
 
@@ -1810,6 +1844,7 @@ func (p *Parser) parseSwitchStmt() *ast.SwitchStmt {
 	p.expect(lexer.TokLBrace)
 
 	for p.current().Kind != lexer.TokRBrace && p.current().Kind != lexer.TokEOF {
+		startPos := p.pos
 		c := ast.SwitchCase{}
 
 		if p.match(lexer.TokDefault) {
@@ -1826,6 +1861,12 @@ func (p *Parser) parseSwitchStmt() *ast.SwitchStmt {
 		p.expect(lexer.TokColon)
 		c.Body = p.parseCompoundStmt()
 		stmt.Cases = append(stmt.Cases, c)
+
+		// Safety check: if we didn't advance, skip a token to prevent infinite loop
+		if p.pos == startPos {
+			p.error("unexpected token in switch")
+			p.advance()
+		}
 	}
 
 	p.expect(lexer.TokRBrace)
