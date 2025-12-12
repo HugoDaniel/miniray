@@ -1,0 +1,26 @@
+# Build artifacts
+/build/
+/dist/
+
+# Binary
+/wgslmin
+
+# Test artifacts
+*.test
+coverage.out
+coverage.html
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+go.sum
