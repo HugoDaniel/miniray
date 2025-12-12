@@ -1,0 +1,1 @@
+../../npm/wgslmin-wasm/wasm_exec.js

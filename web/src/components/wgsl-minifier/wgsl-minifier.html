@@ -1,0 +1,71 @@
+<template data-component="wgsl-minifier">
+  <div class="minifier">
+    <div data-ref="loading" class="loading" hidden>
+      Loading WASM...
+    </div>
+
+    <div data-ref="content" class="content" hidden>
+      <div class="panels">
+        <div class="panel">
+          <label for="input">Input</label>
+          <textarea
+            data-ref="input"
+            id="input"
+            spellcheck="false"
+            oninput="['inputChange']"
+          ></textarea>
+        </div>
+
+        <div class="panel">
+          <label for="output">Output</label>
+          <textarea
+            data-ref="output"
+            id="output"
+            readonly
+            spellcheck="false"
+          ></textarea>
+        </div>
+      </div>
+
+      <div data-ref="error" class="error" hidden></div>
+
+      <div class="controls">
+        <div class="options">
+          <label class="preset">
+            <span>Preset</span>
+            <select data-ref="preset" onchange="['presetChange']">
+              <option value="default">Default</option>
+              <option value="compute.toys">compute.toys</option>
+            </select>
+          </label>
+          <label class="option">
+            <input type="checkbox" data-ref="whitespace" onchange="['optionChange']" />
+            Whitespace
+          </label>
+          <label class="option">
+            <input type="checkbox" data-ref="identifiers" onchange="['optionChange']" />
+            Identifiers
+          </label>
+          <label class="option">
+            <input type="checkbox" data-ref="syntax" onchange="['optionChange']" />
+            Syntax
+          </label>
+          <label class="option">
+            <input type="checkbox" data-ref="mangle" onchange="['optionChange']" />
+            Mangle bindings
+          </label>
+        </div>
+
+        <div class="actions">
+          <button onclick="['copy']" data-ref="copyBtn">Copy</button>
+        </div>
+      </div>
+
+      <div data-ref="stats" class="stats" hidden>
+        <span data-ref="original"></span>
+        <span data-ref="minified"></span>
+        <span data-ref="savings"></span>
+      </div>
+    </div>
+  </div>
+</template>
