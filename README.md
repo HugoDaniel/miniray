@@ -2,6 +2,8 @@
 
 A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspired by [esbuild](https://esbuild.github.io/)'s architecture.
 
+**[Try the online demo](https://hugodaniel.com/pages/wgsl-minifier/)**
+
 ## Features
 
 - **Whitespace minification** - Remove unnecessary whitespace and newlines
