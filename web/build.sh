@@ -3,17 +3,26 @@ set -e
 
 # Clean and create dist directory
 rm -rf dist
-mkdir -p dist/components/wgsl-minifier
+mkdir -p dist
 
-# Copy files and ensure they're readable
+# Copy main files
 cp src/styles.css src/main.js dist/
-cp src/components/wgsl-minifier/* dist/components/wgsl-minifier/
-chmod -R a+r dist/
+
+# Copy component JS with fixed imports (flatten the path)
+sed 's|from "../../main.js"|from "./main.js"|g' src/components/wgsl-minifier/wgsl-minifier.js > dist/wgsl-minifier.js
+
+# Copy WASM files
 cp -r public/* dist/
+
+# Copy boreDOM
 cp node_modules/boredom/dist/boreDOM.full.js dist/boreDOM.js
 
-# Create index.html with import map
-cat > dist/index.html << 'HTMLEOF'
+# Read component template and CSS
+COMPONENT_TEMPLATE=$(cat src/components/wgsl-minifier/wgsl-minifier.html)
+COMPONENT_CSS=$(cat src/components/wgsl-minifier/wgsl-minifier.css)
+
+# Create index.html with everything inlined/linked properly
+cat > dist/index.html << HTMLEOF
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,6 +31,9 @@ cat > dist/index.html << 'HTMLEOF'
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WGSL Minifier</title>
   <link rel="stylesheet" href="./styles.css">
+  <style>
+${COMPONENT_CSS}
+  </style>
   <script src="./main.js" type="module"></script>
 </head>
 <body>
@@ -37,8 +49,14 @@ cat > dist/index.html << 'HTMLEOF'
     <span class="separator"></span>
     <p>Made with&nbsp;<a href="https://hugodaniel.com/pages/boreDOM/">boreDOM</a> <span class="sleepy">🥱</span></p>
   </footer>
+
+  ${COMPONENT_TEMPLATE}
+  <script src="./wgsl-minifier.js" type="module"></script>
 </body>
 </html>
 HTMLEOF
+
+# Ensure all files are readable
+chmod -R a+r dist/
 
 echo "Build complete: dist/"
