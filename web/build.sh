@@ -5,9 +5,10 @@ set -e
 rm -rf dist
 mkdir -p dist/components/wgsl-minifier
 
-# Copy files
+# Copy files and ensure they're readable
 cp src/styles.css src/main.js dist/
 cp src/components/wgsl-minifier/* dist/components/wgsl-minifier/
+chmod -R a+r dist/
 cp -r public/* dist/
 cp node_modules/boredom/dist/boreDOM.full.js dist/boreDOM.js
 

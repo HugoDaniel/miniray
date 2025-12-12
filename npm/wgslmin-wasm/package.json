@@ -1,6 +1,6 @@
 {
   "name": "wgslmin-wasm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "WGSL minifier for WebGPU shaders - WebAssembly build",
   "main": "lib/main.js",
   "module": "esm/browser.js",
