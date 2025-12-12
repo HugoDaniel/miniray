@@ -1,9 +1,9 @@
 /**
- * wgslmin-wasm - WGSL Minifier for WebGPU Shaders (ESM Build)
+ * miniray - WGSL Minifier for WebGPU Shaders (ESM Build)
  *
  * Usage:
- *   import { initialize, minify } from 'wgslmin-wasm'
- *   await initialize({ wasmURL: '/wgslmin.wasm' })
+ *   import { initialize, minify } from 'miniray'
+ *   await initialize({ wasmURL: '/miniray.wasm' })
  *   const result = minify(source, { minifyWhitespace: true })
  */
 
@@ -14,7 +14,7 @@ let _go = null;
 /**
  * Initialize the WASM module.
  * @param {Object} options
- * @param {string|URL} [options.wasmURL] - URL to wgslmin.wasm
+ * @param {string|URL} [options.wasmURL] - URL to miniray.wasm
  * @param {WebAssembly.Module} [options.wasmModule] - Pre-compiled module
  * @returns {Promise<void>}
  */
@@ -49,7 +49,7 @@ async function _doInitialize(wasmURL, wasmModule) {
   // Load wasm_exec.js if Go is not defined
   if (typeof Go === 'undefined') {
     throw new Error(
-      'Go runtime not found. Make sure to include wasm_exec.js before using wgslmin-wasm:\n' +
+      'Go runtime not found. Make sure to include wasm_exec.js before using miniray:\n' +
       '<script src="wasm_exec.js"></script>'
     );
   }
@@ -92,11 +92,11 @@ async function _doInitialize(wasmURL, wasmModule) {
     }
   }
 
-  // Run the Go program (this sets up __wgslmin global)
+  // Run the Go program (this sets up __miniray global)
   _go.run(instance);
 
-  // Wait for __wgslmin to be available
-  await _waitForGlobal('__wgslmin', 1000);
+  // Wait for __miniray to be available
+  await _waitForGlobal('__miniray', 1000);
 }
 
 function _waitForGlobal(name, timeout) {
@@ -128,14 +128,14 @@ function _waitForGlobal(name, timeout) {
  */
 export function minify(source, options) {
   if (!_initialized) {
-    throw new Error('wgslmin not initialized. Call initialize() first.');
+    throw new Error('miniray not initialized. Call initialize() first.');
   }
 
   if (typeof source !== 'string') {
     throw new Error('source must be a string');
   }
 
-  return globalThis.__wgslmin.minify(source, options || {});
+  return globalThis.__miniray.minify(source, options || {});
 }
 
 /**
@@ -154,10 +154,10 @@ export const version = (() => {
   // Getter that returns version after init
   return {
     toString() {
-      return _initialized ? globalThis.__wgslmin.version : 'unknown';
+      return _initialized ? globalThis.__miniray.version : 'unknown';
     },
     valueOf() {
-      return _initialized ? globalThis.__wgslmin.version : 'unknown';
+      return _initialized ? globalThis.__miniray.version : 'unknown';
     }
   };
 })();

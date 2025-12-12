@@ -1,9 +1,9 @@
 /**
- * wgslmin-wasm - WGSL Minifier for WebGPU Shaders (Browser Build)
+ * miniray - WGSL Minifier for WebGPU Shaders (Browser Build)
  *
  * Usage:
- *   import { initialize, minify } from 'wgslmin-wasm'
- *   await initialize({ wasmURL: '/wgslmin.wasm' })
+ *   import { initialize, minify } from 'miniray'
+ *   await initialize({ wasmURL: '/miniray.wasm' })
  *   const result = minify(source, { minifyWhitespace: true })
  */
 
@@ -13,7 +13,7 @@
   } else if (typeof module === 'object' && module.exports) {
     module.exports = factory();
   } else {
-    root.wgslmin = factory();
+    root.miniray = factory();
   }
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
@@ -25,7 +25,7 @@
   /**
    * Initialize the WASM module.
    * @param {Object} options
-   * @param {string|URL} [options.wasmURL] - URL to wgslmin.wasm
+   * @param {string|URL} [options.wasmURL] - URL to miniray.wasm
    * @param {WebAssembly.Module} [options.wasmModule] - Pre-compiled module
    * @returns {Promise<void>}
    */
@@ -60,7 +60,7 @@
     // Load wasm_exec.js if Go is not defined
     if (typeof Go === 'undefined') {
       throw new Error(
-        'Go runtime not found. Make sure to include wasm_exec.js before using wgslmin-wasm:\n' +
+        'Go runtime not found. Make sure to include wasm_exec.js before using miniray:\n' +
         '<script src="wasm_exec.js"></script>'
       );
     }
@@ -103,11 +103,11 @@
       }
     }
 
-    // Run the Go program (this sets up __wgslmin global)
+    // Run the Go program (this sets up __miniray global)
     _go.run(instance);
 
-    // Wait for __wgslmin to be available
-    await _waitForGlobal('__wgslmin', 1000);
+    // Wait for __miniray to be available
+    await _waitForGlobal('__miniray', 1000);
   }
 
   function _waitForGlobal(name, timeout) {
@@ -139,14 +139,14 @@
    */
   function minify(source, options) {
     if (!_initialized) {
-      throw new Error('wgslmin not initialized. Call initialize() first.');
+      throw new Error('miniray not initialized. Call initialize() first.');
     }
 
     if (typeof source !== 'string') {
       throw new Error('source must be a string');
     }
 
-    return globalThis.__wgslmin.minify(source, options || {});
+    return globalThis.__miniray.minify(source, options || {});
   }
 
   /**
@@ -165,7 +165,7 @@
     if (!_initialized) {
       return 'unknown';
     }
-    return globalThis.__wgslmin.version;
+    return globalThis.__miniray.version;
   }
 
   return {

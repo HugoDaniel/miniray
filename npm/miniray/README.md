@@ -1,25 +1,25 @@
-# wgslmin-wasm
+# miniray
 
 WGSL minifier for WebGPU shaders - WebAssembly build.
 
-This package provides a WASM build of the [wgsl-minifier](https://codeberg.org/saruga/wgsl-minifier) that runs in browsers and Node.js.
+This package provides a WASM build of the [wgsl-minifier](https://github.com/HugoDaniel/miniray) that runs in browsers and Node.js.
 
 ## Installation
 
 ```bash
-npm install wgslmin-wasm
+npm install miniray
 ```
 
 ## Browser Usage
 
 ```html
-<script src="node_modules/wgslmin-wasm/wasm_exec.js"></script>
-<script src="node_modules/wgslmin-wasm/lib/browser.js"></script>
+<script src="node_modules/miniray/wasm_exec.js"></script>
+<script src="node_modules/miniray/lib/browser.js"></script>
 <script>
   (async () => {
-    await wgslmin.initialize({ wasmURL: 'node_modules/wgslmin-wasm/wgslmin.wasm' });
+    await miniray.initialize({ wasmURL: 'node_modules/miniray/miniray.wasm' });
 
-    const result = wgslmin.minify(`
+    const result = miniray.minify(`
       @vertex fn main() -> @builtin(position) vec4f {
         return vec4f(0.0);
       }
@@ -34,9 +34,9 @@ npm install wgslmin-wasm
 ### ESM Usage
 
 ```javascript
-import { initialize, minify } from 'wgslmin-wasm';
+import { initialize, minify } from 'miniray';
 
-await initialize({ wasmURL: '/path/to/wgslmin.wasm' });
+await initialize({ wasmURL: '/path/to/miniray.wasm' });
 
 const result = minify(source, {
   minifyWhitespace: true,
@@ -48,9 +48,9 @@ const result = minify(source, {
 ## Node.js Usage
 
 ```javascript
-const { initialize, minify } = require('wgslmin-wasm');
+const { initialize, minify } = require('miniray');
 
-await initialize(); // Automatically finds wgslmin.wasm
+await initialize(); // Automatically finds miniray.wasm
 
 const result = minify(source);
 console.log(result.code);
@@ -64,7 +64,7 @@ Initialize the WASM module. Must be called before `minify()`.
 
 ```typescript
 interface InitializeOptions {
-  wasmURL?: string | URL;           // Path or URL to wgslmin.wasm
+  wasmURL?: string | URL;           // Path or URL to miniray.wasm
   wasmModule?: WebAssembly.Module;  // Pre-compiled module
 }
 ```
@@ -149,8 +149,8 @@ minify(source, {
 ### Vite
 
 ```javascript
-import { initialize, minify } from 'wgslmin-wasm';
-import wasmURL from 'wgslmin-wasm/wgslmin.wasm?url';
+import { initialize, minify } from 'miniray';
+import wasmURL from 'miniray/miniray.wasm?url';
 
 await initialize({ wasmURL });
 ```
@@ -158,10 +158,10 @@ await initialize({ wasmURL });
 ### Webpack
 
 ```javascript
-import { initialize, minify } from 'wgslmin-wasm';
+import { initialize, minify } from 'miniray';
 
 // Configure webpack to handle .wasm files
-await initialize({ wasmURL: new URL('wgslmin-wasm/wgslmin.wasm', import.meta.url) });
+await initialize({ wasmURL: new URL('miniray/miniray.wasm', import.meta.url) });
 ```
 
 ## Pre-compiling WASM
@@ -170,7 +170,7 @@ For better performance when creating multiple instances:
 
 ```javascript
 const wasmModule = await WebAssembly.compileStreaming(
-  fetch('/wgslmin.wasm')
+  fetch('/miniray.wasm')
 );
 
 // Share module across workers

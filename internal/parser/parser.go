@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/ast"
-	"codeberg.org/saruga/wgsl-minifier/internal/lexer"
+	"github.com/HugoDaniel/miniray/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/lexer"
 )
 
 // Parser parses WGSL source into an AST using a two-pass approach.

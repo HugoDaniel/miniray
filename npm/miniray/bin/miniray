@@ -7,7 +7,7 @@ const path = require('path');
 const args = process.argv.slice(2);
 
 function printUsage() {
-  console.log(`Usage: wgslmin [options] [file]
+  console.log(`Usage: miniray [options] [file]
 
 Options:
   -h, --help                  Show this help message
@@ -22,16 +22,16 @@ Options:
 If no file is specified, reads from stdin.
 
 Examples:
-  wgslmin shader.wgsl
-  wgslmin shader.wgsl -o shader.min.wgsl
-  wgslmin --keep-names main,uniforms shader.wgsl
-  cat shader.wgsl | wgslmin > shader.min.wgsl
+  miniray shader.wgsl
+  miniray shader.wgsl -o shader.min.wgsl
+  miniray --keep-names main,uniforms shader.wgsl
+  cat shader.wgsl | miniray > shader.min.wgsl
 `);
 }
 
 function printVersion() {
   const pkg = require('../package.json');
-  console.log(`wgslmin-wasm ${pkg.version}`);
+  console.log(`miniray ${pkg.version}`);
 }
 
 // Parse options

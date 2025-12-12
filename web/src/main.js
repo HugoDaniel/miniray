@@ -78,7 +78,7 @@ async function loadWasm() {
   })
 
   const go = new Go()
-  const response = await fetch("./wgslmin.wasm")
+  const response = await fetch("./miniray.wasm")
   const wasmBuffer = await response.arrayBuffer()
   const result = await WebAssembly.instantiate(wasmBuffer, go.importObject)
 
@@ -87,7 +87,7 @@ async function loadWasm() {
   // Wait for Go to initialize
   await new Promise(resolve => setTimeout(resolve, 100))
 
-  return globalThis.__wgslmin
+  return globalThis.__miniray
 }
 
 window.addEventListener("DOMContentLoaded", async () => {

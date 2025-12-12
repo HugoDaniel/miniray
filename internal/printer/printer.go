@@ -11,7 +11,7 @@ package printer
 import (
 	"strings"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/ast"
 )
 
 // ExternalAlias represents an alias for an external binding.

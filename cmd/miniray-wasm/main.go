@@ -1,6 +1,6 @@
 //go:build js && wasm
 
-// Command wgslmin-wasm is the WebAssembly build of the WGSL minifier.
+// Command miniray-wasm is the WebAssembly build of the WGSL minifier.
 // It exposes minification functions to JavaScript via syscall/js.
 package main
 
@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"syscall/js"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/minifier"
 )
 
 var version = "0.1.0"
@@ -24,7 +24,7 @@ type jsOptions struct {
 
 func main() {
 	// Export functions to JavaScript
-	js.Global().Set("__wgslmin", js.ValueOf(map[string]interface{}{
+	js.Global().Set("__miniray", js.ValueOf(map[string]interface{}{
 		"minify":  js.FuncOf(minifyJS),
 		"version": version,
 	}))
@@ -34,7 +34,7 @@ func main() {
 }
 
 // minifyJS is the JavaScript-callable minify function.
-// Signature: __wgslmin.minify(source: string, options?: object) => object
+// Signature: __miniray.minify(source: string, options?: object) => object
 func minifyJS(this js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return makeError("minify requires at least 1 argument (source)")

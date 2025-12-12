@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/parser"
-	"codeberg.org/saruga/wgsl-minifier/internal/printer"
+	"github.com/HugoDaniel/miniray/internal/parser"
+	"github.com/HugoDaniel/miniray/internal/printer"
 )
 
 // getTestdataDir returns the path to the testdata directory.

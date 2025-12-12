@@ -1,8 +1,8 @@
 /**
- * wgslmin-wasm - WGSL Minifier for WebGPU Shaders (Node.js ESM Build)
+ * miniray - WGSL Minifier for WebGPU Shaders (Node.js ESM Build)
  *
  * Usage:
- *   import { initialize, minify } from 'wgslmin-wasm'
+ *   import { initialize, minify } from 'miniray'
  *   await initialize()
  *   const result = minify(source, { minifyWhitespace: true })
  */
@@ -23,7 +23,7 @@ let _go = null;
 /**
  * Initialize the WASM module.
  * @param {Object} options
- * @param {string} [options.wasmURL] - Path to wgslmin.wasm
+ * @param {string} [options.wasmURL] - Path to miniray.wasm
  * @param {WebAssembly.Module} [options.wasmModule] - Pre-compiled module
  * @returns {Promise<void>}
  */
@@ -39,9 +39,9 @@ export async function initialize(options) {
   let wasmURL = options.wasmURL;
   const wasmModule = options.wasmModule;
 
-  // Default to wgslmin.wasm in the package directory
+  // Default to miniray.wasm in the package directory
   if (!wasmURL && !wasmModule) {
-    wasmURL = path.join(__dirname, '..', 'wgslmin.wasm');
+    wasmURL = path.join(__dirname, '..', 'miniray.wasm');
   }
 
   _initPromise = _doInitialize(wasmURL, wasmModule);
@@ -84,8 +84,8 @@ async function _doInitialize(wasmURL, wasmModule) {
   // Run the Go program
   _go.run(instance);
 
-  // Wait for __wgslmin to be available
-  await _waitForGlobal('__wgslmin', 1000);
+  // Wait for __miniray to be available
+  await _waitForGlobal('__miniray', 1000);
 }
 
 function _waitForGlobal(name, timeout) {
@@ -112,14 +112,14 @@ function _waitForGlobal(name, timeout) {
  */
 export function minify(source, options) {
   if (!_initialized) {
-    throw new Error('wgslmin not initialized. Call initialize() first.');
+    throw new Error('miniray not initialized. Call initialize() first.');
   }
 
   if (typeof source !== 'string') {
     throw new Error('source must be a string');
   }
 
-  return globalThis.__wgslmin.minify(source, options || {});
+  return globalThis.__miniray.minify(source, options || {});
 }
 
 /**
@@ -138,7 +138,7 @@ export function getVersion() {
   if (!_initialized) {
     return 'unknown';
   }
-  return globalThis.__wgslmin.version;
+  return globalThis.__miniray.version;
 }
 
 export const version = getVersion;

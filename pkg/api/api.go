@@ -5,7 +5,7 @@
 package api
 
 import (
-	"codeberg.org/saruga/wgsl-minifier/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/minifier"
 )
 
 // MinifyOptions controls minification behavior.

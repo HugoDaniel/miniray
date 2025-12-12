@@ -6,7 +6,7 @@
 // - Transformable: Supports in-place modifications for minification
 package ast
 
-import "codeberg.org/saruga/wgsl-minifier/internal/lexer"
+import "github.com/HugoDaniel/miniray/internal/lexer"
 
 // ----------------------------------------------------------------------------
 // Side Effects and Purity Tracking

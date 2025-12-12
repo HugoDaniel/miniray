@@ -1,7 +1,7 @@
-# WGSL Minifier Makefile
+# miniray Makefile
 
 # Build settings
-BINARY_NAME := wgslmin
+BINARY_NAME := miniray
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -14,7 +14,7 @@ LDFLAGS := -s -w \
 
 # Directories
 BUILD_DIR := build
-CMD_DIR := cmd/wgslmin
+CMD_DIR := cmd/miniray
 
 .PHONY: all build clean test lint fmt vet check install help build-wasm package-wasm
 
@@ -51,8 +51,8 @@ build-windows:
 		-o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
 
 # Build WebAssembly for browser/Node.js
-NPM_DIR := npm/wgslmin-wasm
-WASM_CMD := cmd/wgslmin-wasm
+NPM_DIR := npm/miniray
+WASM_CMD := cmd/miniray-wasm
 
 build-wasm:
 	@echo "Building WebAssembly..."
@@ -140,7 +140,7 @@ run: build
 
 # Show help
 help:
-	@echo "WGSL Minifier Build System"
+	@echo "miniray Build System"
 	@echo ""
 	@echo "Targets:"
 	@echo "  build         Build the binary"

@@ -3,7 +3,7 @@ package ast
 import (
 	"testing"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/lexer"
+	"github.com/HugoDaniel/miniray/internal/lexer"
 )
 
 // ----------------------------------------------------------------------------

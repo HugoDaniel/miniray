@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/minifier"
 )
 
 // ----------------------------------------------------------------------------

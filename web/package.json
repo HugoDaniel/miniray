@@ -1,5 +1,5 @@
 {
-  "name": "wgsl-minifier-web",
+  "name": "miniray-web",
   "type": "module",
   "private": true,
   "scripts": {

@@ -29,7 +29,7 @@ cat > dist/index.html << HTMLEOF
   <script type="importmap">{ "imports": { "boredom": "./boreDOM.js" } }</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WGSL Minifier</title>
+  <title>miniray - WGSL Minifier</title>
   <link rel="stylesheet" href="./styles.css">
   <style>
 ${COMPONENT_CSS}
@@ -38,8 +38,8 @@ ${COMPONENT_CSS}
 </head>
 <body>
   <header>
-    <h1>WGSL Minifier</h1>
-    <p>Compress your WebGPU shaders</p>
+    <h1>miniray</h1>
+    <p>WGSL Minifier - Compress your WebGPU shaders</p>
   </header>
   <main>
     <wgsl-minifier></wgsl-minifier>
@@ -47,11 +47,11 @@ ${COMPONENT_CSS}
     <section class="cli-section">
       <h2>Also available on the command line</h2>
       <p>Minify WGSL shaders directly from your terminal with a single command:</p>
-      <pre><code>npx wgslmin-wasm shader.wgsl -o shader.min.wgsl</code></pre>
+      <pre><code>npx miniray shader.wgsl -o shader.min.wgsl</code></pre>
     </section>
   </main>
   <footer>
-    <a href="https://codeberg.org/saruga/wgsl-minifier" target="_blank" rel="noopener">Source</a>
+    <a href="https://github.com/HugoDaniel/miniray" target="_blank" rel="noopener">Source</a>
     <span class="separator"></span>
     <p>Made with&nbsp;<a href="https://hugodaniel.com/pages/boreDOM/">boreDOM</a> <span class="sleepy">🥱</span></p>
   </footer>

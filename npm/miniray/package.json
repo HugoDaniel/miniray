@@ -1,6 +1,6 @@
 {
-  "name": "wgslmin-wasm",
-  "version": "0.1.1",
+  "name": "miniray",
+  "version": "0.1.0",
   "description": "WGSL minifier for WebGPU shaders - WebAssembly build",
   "main": "lib/main.js",
   "module": "esm/browser.js",
@@ -9,7 +9,7 @@
   },
   "types": "lib/main.d.ts",
   "bin": {
-    "wgslmin": "bin/wgslmin"
+    "miniray": "bin/miniray"
   },
   "exports": {
     ".": {
@@ -23,13 +23,13 @@
       },
       "default": "./lib/main.js"
     },
-    "./wasm": "./wgslmin.wasm"
+    "./wasm": "./miniray.wasm"
   },
   "files": [
     "lib",
     "esm",
     "bin",
-    "wgslmin.wasm",
+    "miniray.wasm",
     "wasm_exec.js"
   ],
   "keywords": [
@@ -39,13 +39,14 @@
     "shader",
     "wasm",
     "webassembly",
-    "gpu"
+    "gpu",
+    "miniray"
   ],
   "repository": {
     "type": "git",
-    "url": "https://codeberg.org/saruga/wgsl-minifier"
+    "url": "https://github.com/HugoDaniel/miniray"
   },
-  "homepage": "https://codeberg.org/saruga/wgsl-minifier",
+  "homepage": "https://github.com/HugoDaniel/miniray",
   "license": "MIT",
   "engines": {
     "node": ">=16"

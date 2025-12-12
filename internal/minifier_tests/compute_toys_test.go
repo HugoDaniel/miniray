@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/config"
-	"codeberg.org/saruga/wgsl-minifier/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/config"
+	"github.com/HugoDaniel/miniray/internal/minifier"
 )
 
 // TestComputeToysConfig tests minification with the compute.toys configuration.

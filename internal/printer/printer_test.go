@@ -3,7 +3,7 @@ package printer
 import (
 	"testing"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/parser"
+	"github.com/HugoDaniel/miniray/internal/parser"
 )
 
 // ----------------------------------------------------------------------------

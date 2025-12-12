@@ -5,10 +5,10 @@
 package minifier
 
 import (
-	"codeberg.org/saruga/wgsl-minifier/internal/ast"
-	"codeberg.org/saruga/wgsl-minifier/internal/parser"
-	"codeberg.org/saruga/wgsl-minifier/internal/printer"
-	"codeberg.org/saruga/wgsl-minifier/internal/renamer"
+	"github.com/HugoDaniel/miniray/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/parser"
+	"github.com/HugoDaniel/miniray/internal/printer"
+	"github.com/HugoDaniel/miniray/internal/renamer"
 )
 
 // Options controls minification behavior.

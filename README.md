@@ -1,8 +1,8 @@
-# wgsl-minifier
+# miniray
 
 A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspired by [esbuild](https://esbuild.github.io/)'s architecture.
 
-**[Try the online demo](https://hugodaniel.com/pages/wgsl-minifier/)**
+**[Try the online demo](https://hugodaniel.com/pages/miniray/)**
 
 ## Features
 
@@ -10,7 +10,7 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspir
 - **Identifier renaming** - Shorten local variable and function names
 - **Syntax optimization** - Optimize numeric literals and syntax patterns
 - **API-aware** - Preserves entry point names, `@location`, `@binding`, and `@builtin` declarations
-- **WebAssembly build** - Run in browsers and Node.js via `wgslmin-wasm` package
+- **WebAssembly build** - Run in browsers and Node.js via `miniray` package
 
 ## Installation
 
@@ -18,24 +18,24 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspir
 
 ```bash
 # From source
-go install codeberg.org/saruga/wgsl-minifier/cmd/wgslmin@latest
+go install github.com/HugoDaniel/miniray/cmd/miniray@latest
 
 # Or build locally
-git clone https://codeberg.org/saruga/wgsl-minifier.git
-cd wgsl-minifier
+git clone https://github.com/HugoDaniel/miniray.git
+cd miniray
 make build
 ```
 
 ### Browser/Node.js (WASM)
 
 ```bash
-npm install wgslmin-wasm
+npm install miniray
 ```
 
 ```javascript
-import { initialize, minify } from 'wgslmin-wasm';
+import { initialize, minify } from 'miniray';
 
-await initialize({ wasmURL: '/path/to/wgslmin.wasm' });
+await initialize({ wasmURL: '/path/to/miniray.wasm' });
 
 const result = minify(source, {
   minifyWhitespace: true,
@@ -45,28 +45,28 @@ const result = minify(source, {
 console.log(result.code);
 ```
 
-See [npm/wgslmin-wasm/README.md](npm/wgslmin-wasm/README.md) for full WASM documentation.
+See [npm/miniray/README.md](npm/miniray/README.md) for full WASM documentation.
 
 ## Usage
 
 ```bash
 # Minify a file
-wgslmin shader.wgsl -o shader.min.wgsl
+miniray shader.wgsl -o shader.min.wgsl
 
 # Minify from stdin
-cat shader.wgsl | wgslmin > shader.min.wgsl
+cat shader.wgsl | miniray > shader.min.wgsl
 
 # Whitespace-only minification (safest)
-wgslmin --no-mangle shader.wgsl
+miniray --no-mangle shader.wgsl
 
 # Preserve specific names
-wgslmin --keep-names myHelper,computeOffset shader.wgsl
+miniray --keep-names myHelper,computeOffset shader.wgsl
 
 # Mangle uniform/storage bindings directly (smaller output)
-wgslmin --mangle-external-bindings shader.wgsl
+miniray --mangle-external-bindings shader.wgsl
 
 # Use a specific config file
-wgslmin --config myconfig.json shader.wgsl
+miniray --config myconfig.json shader.wgsl
 ```
 
 ### Options
@@ -89,11 +89,11 @@ wgslmin --config myconfig.json shader.wgsl
 ### Config File
 
 The minifier searches for config files in the current directory and parent directories:
-- `wgslmin.json`
-- `.wgslminrc`
-- `.wgslminrc.json`
+- `miniray.json`
+- `.minirayrc`
+- `.minirayrc.json`
 
-Example `wgslmin.json`:
+Example `miniray.json`:
 ```json
 {
     "minifyWhitespace": true,
@@ -115,10 +115,10 @@ Pre-built configuration templates are available in the `configs/` directory:
 [compute.toys](https://compute.toys) is a WebGPU compute shader playground. Use the provided config to preserve all platform-specific bindings and helpers:
 
 ```bash
-wgslmin --config configs/compute.toys.json my_shader.wgsl
+miniray --config configs/compute.toys.json my_shader.wgsl
 ```
 
-Or copy `configs/compute.toys.json` to your project directory as `wgslmin.json` for automatic detection.
+Or copy `configs/compute.toys.json` to your project directory as `miniray.json` for automatic detection.
 
 **Preserved names:**
 - Uniforms: `time`, `mouse`, `custom`, `dispatch`
@@ -133,7 +133,7 @@ Or copy `configs/compute.toys.json` to your project directory as `wgslmin.json` 
 ### Go API
 
 ```go
-import "codeberg.org/saruga/wgsl-minifier/pkg/api"
+import "github.com/HugoDaniel/miniray/pkg/api"
 
 // Full minification
 result := api.Minify(source)
@@ -215,7 +215,7 @@ Source → Lexer → Parser → AST → Minifier → Printer → Output
 | `internal/printer` | Code generation with minification |
 | `internal/minifier` | Orchestrates the minification pipeline |
 | `pkg/api` | Public API for programmatic use |
-| `cmd/wgslmin` | CLI entry point |
+| `cmd/miniray` | CLI entry point |
 
 ## Development
 

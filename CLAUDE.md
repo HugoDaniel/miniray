@@ -1,4 +1,4 @@
-# CLAUDE.md - wgsl-minifier
+# CLAUDE.md - miniray
 
 ## Project Overview
 
@@ -8,8 +8,8 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, with W
 
 ```bash
 # Build
-make build              # Native binary to build/wgslmin
-make build-wasm         # WASM to build/wgslmin.wasm
+make build              # Native binary to build/miniray
+make build-wasm         # WASM to build/miniray.wasm
 make build-all          # All platforms + WASM
 
 # Test
@@ -18,13 +18,13 @@ go test ./internal/minifier_tests/... -v  # Minifier tests with output
 UPDATE_SNAPSHOTS=1 go test ./internal/minifier_tests/...  # Regenerate snapshots
 
 # Run
-./build/wgslmin shader.wgsl                    # Basic minification
-./build/wgslmin --config configs/compute.toys.json shader.wgsl  # With config
-echo 'fn main() {}' | ./build/wgslmin          # From stdin
+./build/miniray shader.wgsl                    # Basic minification
+./build/miniray --config configs/compute.toys.json shader.wgsl  # With config
+echo 'fn main() {}' | ./build/miniray          # From stdin
 
 # NPM package
-cd npm/wgslmin-wasm && node test.js            # Run JS tests
-cd npm/wgslmin-wasm && npm pack --dry-run      # Check package contents
+cd npm/miniray && node test.js            # Run JS tests
+cd npm/miniray && npm pack --dry-run      # Check package contents
 ```
 
 ## Architecture
@@ -47,9 +47,9 @@ Source → Lexer → Parser → AST → Minifier → Printer → Output
 | `internal/config` | JSON config file support |
 | `internal/minifier` | Orchestrates the pipeline |
 | `pkg/api` | Public Go API |
-| `cmd/wgslmin` | CLI |
-| `cmd/wgslmin-wasm` | WASM entry point |
-| `npm/wgslmin-wasm` | NPM package |
+| `cmd/miniray` | CLI |
+| `cmd/miniray` | WASM entry point |
+| `npm/miniray` | NPM package |
 
 ### Key Design Decisions
 
@@ -79,7 +79,7 @@ Source → Lexer → Parser → AST → Minifier → Printer → Output
 
 ### Adding a New CLI Flag
 
-1. Add flag parsing in `cmd/wgslmin/main.go`
+1. Add flag parsing in `cmd/miniray/main.go`
 2. Add to `internal/config/config.go` if it should be in config files
 3. Add to `pkg/api/api.go` MinifyOptions
 4. Wire through `internal/minifier/minifier.go`
@@ -125,16 +125,16 @@ If built-in types like `f32` are being renamed:
 
 ```javascript
 // Node.js
-const { initialize, minify } = require('wgslmin-wasm');
+const { initialize, minify } = require('miniray');
 await initialize();
 const result = minify(source, { minifyWhitespace: true, minifyIdentifiers: true });
 
 // Browser
-import { initialize, minify } from 'wgslmin-wasm';
-await initialize({ wasmURL: '/wgslmin.wasm' });
+import { initialize, minify } from 'miniray';
+await initialize({ wasmURL: '/miniray.wasm' });
 ```
 
-**CLI**: `npx wgslmin shader.wgsl -o shader.min.wgsl`
+**CLI**: `npx miniray shader.wgsl -o shader.min.wgsl`
 
 ## Files to Know
 

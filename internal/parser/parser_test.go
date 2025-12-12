@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/printer"
+	"github.com/HugoDaniel/miniray/internal/printer"
 )
 
 // ----------------------------------------------------------------------------

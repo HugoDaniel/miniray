@@ -1,6 +1,6 @@
 // Package config handles loading minifier configuration from files.
 //
-// Configuration can be specified in a JSON file named wgslmin.json or .wgslminrc.
+// Configuration can be specified in a JSON file named miniray.json or .minirayrc.
 // The config file is searched for in the current directory and parent directories.
 package config
 
@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/minifier"
 )
 
 // Config represents the configuration file structure.
@@ -37,9 +37,9 @@ type Config struct {
 
 // ConfigFileNames are the names searched for config files, in order of preference.
 var ConfigFileNames = []string{
-	"wgslmin.json",
-	".wgslminrc",
-	".wgslminrc.json",
+	"miniray.json",
+	".minirayrc",
+	".minirayrc.json",
 }
 
 // Load searches for a config file starting from the given directory

@@ -11,8 +11,8 @@ import (
 	"sort"
 	"sync/atomic"
 
-	"codeberg.org/saruga/wgsl-minifier/internal/ast"
-	"codeberg.org/saruga/wgsl-minifier/internal/lexer"
+	"github.com/HugoDaniel/miniray/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/lexer"
 )
 
 // ----------------------------------------------------------------------------
