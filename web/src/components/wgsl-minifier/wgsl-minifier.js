@@ -81,6 +81,13 @@ export const WgslMinifier = webComponent(
       }
     })
 
+    on("selectOutput", ({ e }) => {
+      const target = e.event.target
+      if (target instanceof HTMLTextAreaElement) {
+        target.select()
+      }
+    })
+
     return onRender
   }
 )
