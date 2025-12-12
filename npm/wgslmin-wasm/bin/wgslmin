@@ -1,0 +1,134 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+
+function printUsage() {
+  console.log(`Usage: wgslmin [options] [file]
+
+Options:
+  -h, --help                  Show this help message
+  -v, --version               Show version
+  -o, --output <file>         Output file (default: stdout)
+  --no-mangle                 Disable identifier minification
+  --no-whitespace             Disable whitespace minification
+  --mangle-external-bindings  Mangle uniform/storage variable names
+  --keep-names <names>        Comma-separated list of names to preserve
+  --config <file>             Load config from JSON file
+
+If no file is specified, reads from stdin.
+
+Examples:
+  wgslmin shader.wgsl
+  wgslmin shader.wgsl -o shader.min.wgsl
+  wgslmin --keep-names main,uniforms shader.wgsl
+  cat shader.wgsl | wgslmin > shader.min.wgsl
+`);
+}
+
+function printVersion() {
+  const pkg = require('../package.json');
+  console.log(`wgslmin-wasm ${pkg.version}`);
+}
+
+// Parse options
+let inputFile = null;
+let outputFile = null;
+let options = {
+  minifyWhitespace: true,
+  minifyIdentifiers: true,
+  minifySyntax: true,
+  mangleExternalBindings: false,
+  keepNames: []
+};
+let configFile = null;
+
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+
+  if (arg === '-h' || arg === '--help') {
+    printUsage();
+    process.exit(0);
+  } else if (arg === '-v' || arg === '--version') {
+    printVersion();
+    process.exit(0);
+  } else if (arg === '-o' || arg === '--output') {
+    outputFile = args[++i];
+  } else if (arg === '--no-mangle') {
+    options.minifyIdentifiers = false;
+  } else if (arg === '--no-whitespace') {
+    options.minifyWhitespace = false;
+  } else if (arg === '--mangle-external-bindings') {
+    options.mangleExternalBindings = true;
+  } else if (arg === '--keep-names') {
+    options.keepNames = args[++i].split(',').map(s => s.trim());
+  } else if (arg === '--config') {
+    configFile = args[++i];
+  } else if (!arg.startsWith('-')) {
+    inputFile = arg;
+  } else {
+    console.error(`Unknown option: ${arg}`);
+    process.exit(1);
+  }
+}
+
+// Load config file if specified
+if (configFile) {
+  try {
+    const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    if (config.minifyWhitespace !== undefined) options.minifyWhitespace = config.minifyWhitespace;
+    if (config.minifyIdentifiers !== undefined) options.minifyIdentifiers = config.minifyIdentifiers;
+    if (config.minifySyntax !== undefined) options.minifySyntax = config.minifySyntax;
+    if (config.mangleExternalBindings !== undefined) options.mangleExternalBindings = config.mangleExternalBindings;
+    if (config.keepNames) options.keepNames = [...options.keepNames, ...config.keepNames];
+  } catch (err) {
+    console.error(`Error loading config file: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+async function main() {
+  // Read input
+  let source;
+  if (inputFile) {
+    try {
+      source = fs.readFileSync(inputFile, 'utf8');
+    } catch (err) {
+      console.error(`Error reading file: ${err.message}`);
+      process.exit(1);
+    }
+  } else {
+    // Read from stdin
+    source = fs.readFileSync(0, 'utf8');
+  }
+
+  // Initialize WASM and minify
+  const { initialize, minify } = require('../lib/main.js');
+
+  try {
+    await initialize();
+    const result = minify(source, options);
+
+    if (result.errors && result.errors.length > 0) {
+      for (const err of result.errors) {
+        console.error(`Error at line ${err.line}, column ${err.column}: ${err.message}`);
+      }
+      process.exit(1);
+    }
+
+    // Write output
+    if (outputFile) {
+      fs.writeFileSync(outputFile, result.code);
+    } else {
+      process.stdout.write(result.code);
+    }
+  } catch (err) {
+    console.error(`Minification error: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+main();

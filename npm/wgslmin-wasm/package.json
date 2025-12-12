@@ -1,0 +1,53 @@
+{
+  "name": "wgslmin-wasm",
+  "version": "0.1.0",
+  "description": "WGSL minifier for WebGPU shaders - WebAssembly build",
+  "main": "lib/main.js",
+  "module": "esm/browser.js",
+  "browser": {
+    "./lib/main.js": "./lib/browser.js"
+  },
+  "types": "lib/main.d.ts",
+  "bin": {
+    "wgslmin": "bin/wgslmin"
+  },
+  "exports": {
+    ".": {
+      "browser": {
+        "import": "./esm/browser.js",
+        "default": "./lib/browser.js"
+      },
+      "node": {
+        "import": "./esm/node.mjs",
+        "require": "./lib/main.js"
+      },
+      "default": "./lib/main.js"
+    },
+    "./wasm": "./wgslmin.wasm"
+  },
+  "files": [
+    "lib",
+    "esm",
+    "bin",
+    "wgslmin.wasm",
+    "wasm_exec.js"
+  ],
+  "keywords": [
+    "wgsl",
+    "webgpu",
+    "minifier",
+    "shader",
+    "wasm",
+    "webassembly",
+    "gpu"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://codeberg.org/saruga/wgsl-minifier"
+  },
+  "homepage": "https://codeberg.org/saruga/wgsl-minifier",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  }
+}
