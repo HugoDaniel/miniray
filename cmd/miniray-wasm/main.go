@@ -19,6 +19,7 @@ type jsOptions struct {
 	MinifyIdentifiers      *bool    `json:"minifyIdentifiers"`
 	MinifySyntax           *bool    `json:"minifySyntax"`
 	MangleExternalBindings *bool    `json:"mangleExternalBindings"`
+	TreeShaking            *bool    `json:"treeShaking"`
 	KeepNames              []string `json:"keepNames"`
 }
 
@@ -48,6 +49,7 @@ func minifyJS(this js.Value, args []js.Value) interface{} {
 		MinifyIdentifiers:      true,
 		MinifySyntax:           true,
 		MangleExternalBindings: false,
+		TreeShaking:            true,
 	}
 
 	if len(args) > 1 && !args[1].IsUndefined() && !args[1].IsNull() {
@@ -63,6 +65,9 @@ func minifyJS(this js.Value, args []js.Value) interface{} {
 		}
 		if jsOpts.MangleExternalBindings != nil {
 			opts.MangleExternalBindings = *jsOpts.MangleExternalBindings
+		}
+		if jsOpts.TreeShaking != nil {
+			opts.TreeShaking = *jsOpts.TreeShaking
 		}
 		if jsOpts.KeepNames != nil {
 			opts.KeepNames = jsOpts.KeepNames
@@ -118,6 +123,10 @@ func parseOptions(jsVal js.Value) jsOptions {
 	if v := jsVal.Get("mangleExternalBindings"); !v.IsUndefined() {
 		b := v.Bool()
 		opts.MangleExternalBindings = &b
+	}
+	if v := jsVal.Get("treeShaking"); !v.IsUndefined() {
+		b := v.Bool()
+		opts.TreeShaking = &b
 	}
 	if v := jsVal.Get("keepNames"); !v.IsUndefined() && v.Type() == js.TypeObject {
 		length := v.Get("length").Int()
