@@ -82,12 +82,18 @@ async function loadWasm() {
   const wasmBuffer = await response.arrayBuffer()
   const result = await WebAssembly.instantiate(wasmBuffer, go.importObject)
 
+  // Start Go runtime (returns a Promise that resolves when Go exits)
   go.run(result.instance)
 
-  // Wait for Go to initialize
-  await new Promise(resolve => setTimeout(resolve, 100))
+  // Wait for Go to set up __miniray (poll instead of fixed timeout)
+  for (let i = 0; i < 50; i++) {
+    if (globalThis.__miniray) {
+      return globalThis.__miniray
+    }
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
 
-  return globalThis.__miniray
+  throw new Error("WASM initialization failed: __miniray not set")
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -109,8 +115,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 /** @param {AppState} state */
 export function minifyShader(state) {
   const wasm = state[runtimeAttr].wasm
-  if (!wasm) return
-  if (state.isMinifying) return
+  if (!wasm || state.isMinifying) return
 
   state.isMinifying = true
   state.error = null
