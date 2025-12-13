@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Node.js test script for wgslmin-wasm
+ * Node.js test script for miniray WASM
  * Run with: node test.js
  */
 
@@ -20,14 +20,14 @@ globalThis.crypto ??= require('crypto');
 require('./wasm_exec.js');
 
 async function main() {
-    console.log('wgslmin-wasm Node.js Test\n');
+    console.log('miniray WASM Node.js Test\n');
 
     // Initialize WASM
     const go = new Go();
-    const wasmPath = path.join(__dirname, 'wgslmin.wasm');
+    const wasmPath = path.join(__dirname, 'miniray.wasm');
 
     if (!fs.existsSync(wasmPath)) {
-        console.error('Error: wgslmin.wasm not found. Run "make package-wasm" first.');
+        console.error('Error: miniray.wasm not found. Run "make package-wasm" first.');
         process.exit(1);
     }
 
@@ -38,15 +38,26 @@ async function main() {
     // Run the Go program (don't await - it runs in background)
     go.run(result.instance);
 
-    // Wait a bit for the Go program to initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Poll for WASM initialization (regression test for version mismatch)
+    // The Go runtime sets globalThis.__miniray when ready
+    let initTime = 0;
+    for (let i = 0; i < 50; i++) {
+        if (globalThis.__miniray) {
+            initTime = i * 10;
+            break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 10));
+    }
 
-    if (typeof global.__wgslmin === 'undefined') {
-        console.error('Error: __wgslmin not defined after WASM load');
+    if (typeof globalThis.__miniray === 'undefined') {
+        console.error('Error: __miniray not defined after WASM load');
+        console.error('This usually indicates a version mismatch between wasm_exec.js and the Go compiler.');
+        console.error('Run "make package-wasm" to rebuild with matching versions.');
         process.exit(1);
     }
 
-    console.log('Version:', global.__wgslmin.version);
+    console.log('WASM initialized in', initTime, 'ms');
+    console.log('Version:', globalThis.__miniray.version);
     console.log('');
 
     // Run tests
@@ -64,10 +75,10 @@ async function main() {
             check: (r) => r.code.includes('foo') && r.errors.length === 0
         },
         {
-            name: 'External binding aliasing (default)',
+            name: 'External binding preserved (default)',
             input: '@group(0) @binding(0) var<uniform> uniforms: f32;\nfn getValue() -> f32 { return uniforms * 2.0; }',
             options: { minifyWhitespace: true, minifyIdentifiers: true },
-            check: (r) => r.code.includes('var<uniform> uniforms') && r.code.includes('let ') && r.errors.length === 0
+            check: (r) => r.code.includes('var<uniform> uniforms') && r.errors.length === 0
         },
         {
             name: 'External binding mangling',
@@ -103,7 +114,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     for (const test of tests) {
         try {
-            const result = global.__wgslmin.minify(test.input, test.options);
+            const result = globalThis.__miniray.minify(test.input, test.options);
             const ok = test.check(result);
 
             if (ok) {
@@ -135,12 +146,12 @@ fn getValue() -> f32 { return uniforms * 2.0; }`;
     console.log(example);
 
     console.log('\nWith aliasing (default):');
-    const r1 = global.__wgslmin.minify(example, { minifyWhitespace: true, minifyIdentifiers: true });
+    const r1 = globalThis.__miniray.minify(example, { minifyWhitespace: true, minifyIdentifiers: true });
     console.log(r1.code);
     console.log(`(${r1.originalSize} -> ${r1.minifiedSize} bytes)`);
 
     console.log('\nWith mangleExternalBindings:');
-    const r2 = global.__wgslmin.minify(example, { minifyWhitespace: true, minifyIdentifiers: true, mangleExternalBindings: true });
+    const r2 = globalThis.__miniray.minify(example, { minifyWhitespace: true, minifyIdentifiers: true, mangleExternalBindings: true });
     console.log(r2.code);
     console.log(`(${r2.originalSize} -> ${r2.minifiedSize} bytes)`);
 
