@@ -1,30 +1,30 @@
 SingleUniformBinding
 ---------- /out.wgsl ----------
-@group(0) @binding(0) var<uniform> uniforms:f32;let a=uniforms;fn b()->f32{return a*2.0;}
+@group(0) @binding(0) var<uniform> uniforms:f32;fn a()->f32{return uniforms*2.0;}
 ================================================================================
 MultipleUniformBindings
 ---------- /out.wgsl ----------
-@group(0) @binding(0) var<uniform> modelMatrix:mat4x4f;@group(0) @binding(1) var<uniform> viewMatrix:mat4x4f;let a=modelMatrix;let b=viewMatrix;fn d(c:vec4f)->vec4f{return b*a*c;}
+@group(0) @binding(0) var<uniform> modelMatrix:mat4x4f;@group(0) @binding(1) var<uniform> viewMatrix:mat4x4f;fn b(a:vec4f)->vec4f{return viewMatrix*modelMatrix*a;}
 ================================================================================
 StorageBinding
 ---------- /out.wgsl ----------
-@group(0) @binding(0) var<storage,read_write> data:array<f32>;let a=data;fn c(b:u32)->f32{return a[b];}
+@group(0) @binding(0) var<storage,read_write> data:array<f32>;fn b(a:u32)->f32{return data[a];}
 ================================================================================
 MixedUniformStorage
 ---------- /out.wgsl ----------
-@group(0) @binding(0) var<uniform> params:vec4f;@group(0) @binding(1) var<storage> buffer:array<f32>;let a=params;let b=buffer;fn d(c:u32)->f32{return b[c]*a.x;}
+@group(0) @binding(0) var<uniform> params:vec4f;@group(0) @binding(1) var<storage> buffer:array<f32>;fn b(a:u32)->f32{return buffer[a]*params.x;}
 ================================================================================
 UniformWithTextures
 ---------- /out.wgsl ----------
-@group(0) @binding(0) var<uniform> scale:f32;let a=scale;@group(0) @binding(1) var b:texture_2d<f32>;@group(0) @binding(2) var c:sampler;@fragment fn main(@location(0) d:vec2f)->@location(0) vec4f{return textureSample(b,c,d)*a;}
+@group(0) @binding(0) var<uniform> scale:f32;@group(0) @binding(1) var a:texture_2d<f32>;@group(0) @binding(2) var b:sampler;@fragment fn main(@location(0) c:vec2f)->@location(0) vec4f{return textureSample(a,b,c)*scale;}
 ================================================================================
 UniformMultipleUses
 ---------- /out.wgsl ----------
-@group(0) @binding(0) var<uniform> multiplier:f32;let a=multiplier;fn h(b:f32,c:f32,d:f32)->f32{let e=b*a;let f=c*a;let g=d*a;return e+f+g;}
+@group(0) @binding(0) var<uniform> multiplier:f32;fn g(a:f32,b:f32,c:f32)->f32{let d=a*multiplier;let e=b*multiplier;let f=c*multiplier;return d+e+f;}
 ================================================================================
 StructUniform
 ---------- /out.wgsl ----------
-struct c{time:f32,resolution:vec2f}@group(0) @binding(0) var<uniform> u:c;let a=u;fn d()->f32{return a.resolution.x/a.resolution.y;}fn e(b:vec2f)->vec2f{return b+vec2f(sin(a.time),cos(a.time));}
+struct b{time:f32,resolution:vec2f}@group(0) @binding(0) var<uniform> u:b;fn c()->f32{return u.resolution.x/u.resolution.y;}fn d(a:vec2f)->vec2f{return a+vec2f(sin(u.time),cos(u.time));}
 ================================================================================
 UnusedUniform
 ---------- /out.wgsl ----------
@@ -32,5 +32,5 @@ UnusedUniform
 ================================================================================
 LongBindingName
 ---------- /out.wgsl ----------
-@group(0) @binding(0) var<uniform> veryLongUniformBindingName:f32;let a=veryLongUniformBindingName;fn b()->f32{return a+a;}
+@group(0) @binding(0) var<uniform> veryLongUniformBindingName:f32;fn a()->f32{return veryLongUniformBindingName+veryLongUniformBindingName;}
 ================================================================================
