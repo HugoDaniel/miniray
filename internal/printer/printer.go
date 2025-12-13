@@ -12,14 +12,8 @@ import (
 	"strings"
 
 	"github.com/HugoDaniel/miniray/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/dce"
 )
-
-// ExternalAlias represents an alias for an external binding.
-type ExternalAlias struct {
-	OriginalRef  ast.Ref
-	OriginalName string
-	AliasName    string
-}
 
 // Options controls printer output.
 type Options struct {
@@ -32,11 +26,11 @@ type Options struct {
 	// MinifySyntax applies syntax-level optimizations
 	MinifySyntax bool
 
+	// TreeShaking enables dead code elimination (skip dead declarations)
+	TreeShaking bool
+
 	// Renamer provides minified names (nil for no renaming)
 	Renamer Renamer
-
-	// ExternalAliases maps external binding refs to their short aliases
-	ExternalAliases []ExternalAlias
 }
 
 // Renamer provides minified names for symbols.
@@ -54,25 +48,14 @@ type Printer struct {
 
 	// Track if we need whitespace before next token
 	needsSpace bool
-
-	// External binding alias lookup (ref -> alias name)
-	externalAliasMap map[uint32]string
 }
 
 // New creates a new printer.
 func New(options Options, symbols []ast.Symbol) *Printer {
-	p := &Printer{
-		options:          options,
-		symbols:          symbols,
-		externalAliasMap: make(map[uint32]string),
+	return &Printer{
+		options: options,
+		symbols: symbols,
 	}
-
-	// Build alias lookup
-	for _, alias := range options.ExternalAliases {
-		p.externalAliasMap[alias.OriginalRef.InnerIndex] = alias.AliasName
-	}
-
-	return p
 }
 
 // Print outputs the module as a string.
@@ -116,25 +99,9 @@ func (p *Printer) printSemicolon() {
 }
 
 func (p *Printer) printName(ref ast.Ref) {
-	// Check if this is an external binding with an alias
-	if ref.IsValid() {
-		if aliasName, ok := p.externalAliasMap[ref.InnerIndex]; ok {
-			p.print(aliasName)
-			return
-		}
-	}
-
 	if p.options.MinifyIdentifiers && p.options.Renamer != nil {
 		p.print(p.options.Renamer.NameForSymbol(ref))
 	} else if ref.IsValid() && int(ref.InnerIndex) < len(p.symbols) {
-		p.print(p.symbols[ref.InnerIndex].OriginalName)
-	}
-}
-
-// printOriginalName prints the original symbol name (ignoring aliases).
-// Used for declarations of external bindings.
-func (p *Printer) printOriginalName(ref ast.Ref) {
-	if ref.IsValid() && int(ref.InnerIndex) < len(p.symbols) {
 		p.print(p.symbols[ref.InnerIndex].OriginalName)
 	}
 }
@@ -153,49 +120,25 @@ func (p *Printer) printModule(m *ast.Module) {
 		p.printNewline()
 	}
 
-	// Declarations - track when to inject aliases
-	aliasesInjected := false
-	for i, decl := range m.Declarations {
+	// Filter declarations based on tree shaking
+	var liveDecls []ast.Decl
+	if p.options.TreeShaking {
+		for _, decl := range m.Declarations {
+			if dce.IsDeclarationLive(decl, p.symbols) {
+				liveDecls = append(liveDecls, decl)
+			}
+		}
+	} else {
+		liveDecls = m.Declarations
+	}
+
+	// Declarations
+	for i, decl := range liveDecls {
 		p.printDecl(decl)
 
-		// After printing all external bindings, inject their aliases
-		if !aliasesInjected && len(p.options.ExternalAliases) > 0 {
-			// Check if next declaration is not an external binding var
-			nextIsExternalBinding := false
-			if i+1 < len(m.Declarations) {
-				if varDecl, ok := m.Declarations[i+1].(*ast.VarDecl); ok {
-					if varDecl.AddressSpace == ast.AddressSpaceUniform ||
-						varDecl.AddressSpace == ast.AddressSpaceStorage {
-						nextIsExternalBinding = true
-					}
-				}
-			}
-
-			// If current is external binding and next is not, inject aliases
-			if varDecl, ok := decl.(*ast.VarDecl); ok {
-				isCurrentExternal := varDecl.AddressSpace == ast.AddressSpaceUniform ||
-					varDecl.AddressSpace == ast.AddressSpaceStorage
-				if isCurrentExternal && !nextIsExternalBinding {
-					p.printExternalAliases()
-					aliasesInjected = true
-				}
-			}
-		}
-
-		if i < len(m.Declarations)-1 && !p.options.MinifyWhitespace {
+		if i < len(liveDecls)-1 && !p.options.MinifyWhitespace {
 			p.printNewline()
 		}
-	}
-}
-
-// printExternalAliases prints let declarations for external binding aliases.
-func (p *Printer) printExternalAliases() {
-	for _, alias := range p.options.ExternalAliases {
-		p.print("let ")
-		p.print(alias.AliasName)
-		p.print("=")
-		p.print(alias.OriginalName)
-		p.print(";")
 	}
 }
 
@@ -285,14 +228,7 @@ func (p *Printer) printDecl(d ast.Decl) {
 			p.print(">")
 		}
 		p.print(" ")
-		// External bindings keep their original names in declarations only when using aliases
-		// (i.e., when externalAliasMap is populated). If not using aliases, mangle normally.
-		isExternal := decl.AddressSpace == ast.AddressSpaceUniform || decl.AddressSpace == ast.AddressSpaceStorage
-		if isExternal && len(p.externalAliasMap) > 0 {
-			p.printOriginalName(decl.Name)
-		} else {
-			p.printName(decl.Name)
-		}
+		p.printName(decl.Name)
 		if decl.Type != nil {
 			p.print(":")
 			p.printSpace()
@@ -560,7 +496,12 @@ func (p *Printer) printExpr(e ast.Expr) {
 		p.printUnaryExpr(expr)
 
 	case *ast.CallExpr:
-		p.printExpr(expr.Func)
+		// Check for templated type constructor first
+		if expr.TemplateType != nil {
+			p.printType(expr.TemplateType)
+		} else {
+			p.printExpr(expr.Func)
+		}
 		p.print("(")
 		for i, arg := range expr.Args {
 			if i > 0 {
@@ -766,9 +707,29 @@ func (p *Printer) printStmtNoTrailingNewline(s ast.Stmt) {
 		p.printNewline()
 		p.print("}")
 		if stmt.Else != nil {
-			p.print(" else")
-			p.printSpace()
-			p.printStmtNoTrailingNewline(stmt.Else)
+			// Check if else branch is another if statement (else if)
+			if _, isElseIf := stmt.Else.(*ast.IfStmt); isElseIf {
+				p.print(" else if ")
+				elseIf := stmt.Else.(*ast.IfStmt)
+				p.printExpr(elseIf.Condition)
+				p.printSpace()
+				p.print("{")
+				p.indent++
+				for _, sub := range elseIf.Body.Stmts {
+					p.printNewline()
+					p.printStmtNoTrailingNewline(sub)
+				}
+				p.indent--
+				p.printNewline()
+				p.print("}")
+				if elseIf.Else != nil {
+					p.printElseChainNoTrailing(elseIf.Else)
+				}
+			} else {
+				p.print(" else")
+				p.printSpace()
+				p.printStmtNoTrailingNewline(stmt.Else)
+			}
 		}
 
 	case *ast.SwitchStmt:
@@ -961,9 +922,62 @@ func (p *Printer) printIfStmt(stmt *ast.IfStmt) {
 	p.printSpace()
 	p.printCompoundStmt(stmt.Body)
 	if stmt.Else != nil {
+		// Check if else branch is another if statement (else if)
+		if _, isElseIf := stmt.Else.(*ast.IfStmt); isElseIf {
+			p.print("else if ")
+			elseIf := stmt.Else.(*ast.IfStmt)
+			p.printExpr(elseIf.Condition)
+			p.printSpace()
+			p.printCompoundStmt(elseIf.Body)
+			if elseIf.Else != nil {
+				// Recursively handle chained else-if
+				p.printElseChain(elseIf.Else)
+			}
+		} else {
+			p.print("else")
+			p.printSpace()
+			p.printStmt(stmt.Else)
+		}
+	}
+}
+
+func (p *Printer) printElseChain(stmt ast.Stmt) {
+	if ifStmt, isIf := stmt.(*ast.IfStmt); isIf {
+		p.print("else if ")
+		p.printExpr(ifStmt.Condition)
+		p.printSpace()
+		p.printCompoundStmt(ifStmt.Body)
+		if ifStmt.Else != nil {
+			p.printElseChain(ifStmt.Else)
+		}
+	} else {
 		p.print("else")
 		p.printSpace()
-		p.printStmt(stmt.Else)
+		p.printStmt(stmt)
+	}
+}
+
+func (p *Printer) printElseChainNoTrailing(stmt ast.Stmt) {
+	if ifStmt, isIf := stmt.(*ast.IfStmt); isIf {
+		p.print(" else if ")
+		p.printExpr(ifStmt.Condition)
+		p.printSpace()
+		p.print("{")
+		p.indent++
+		for _, sub := range ifStmt.Body.Stmts {
+			p.printNewline()
+			p.printStmtNoTrailingNewline(sub)
+		}
+		p.indent--
+		p.printNewline()
+		p.print("}")
+		if ifStmt.Else != nil {
+			p.printElseChainNoTrailing(ifStmt.Else)
+		}
+	} else {
+		p.print(" else")
+		p.printSpace()
+		p.printStmtNoTrailingNewline(stmt)
 	}
 }
 

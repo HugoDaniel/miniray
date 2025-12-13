@@ -455,7 +455,7 @@ func TestTemplatedConstructors(t *testing.T) {
 	expectPrinted(t, "var x = vec2<i32>(1, 2);", "var x = vec2<i32>(1, 2);\n")
 	expectPrinted(t, "var x = vec4<u32>(0, 0, 0, 1);", "var x = vec4<u32>(0, 0, 0, 1);\n")
 	expectPrinted(t, "var x = mat2x2<f32>(1, 0, 0, 1);", "var x = mat2x2<f32>(1, 0, 0, 1);\n")
-	expectPrinted(t, "var x = array<f32, 4>(1.0, 2.0, 3.0, 4.0);", "var x = array<f32,4>(1.0, 2.0, 3.0, 4.0);\n")
+	expectPrinted(t, "var x = array<f32, 4>(1.0, 2.0, 3.0, 4.0);", "var x = array<f32, 4>(1.0, 2.0, 3.0, 4.0);\n")
 }
 
 // ----------------------------------------------------------------------------

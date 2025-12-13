@@ -13,7 +13,6 @@ package parser
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/HugoDaniel/miniray/internal/ast"
 	"github.com/HugoDaniel/miniray/internal/lexer"
@@ -32,6 +31,7 @@ type Parser struct {
 	// Two-pass tracking
 	scopesInOrder []*ast.Scope // Scopes in parse order for visit pass
 	scopeIndex    int          // Current scope index during visit pass
+	currentLoc    int          // Current source location during visit pass (for text-order scoping)
 
 	// Constant value tracking (for propagation)
 	constValues map[ast.Ref]ConstValue
@@ -178,6 +178,10 @@ func (p *Parser) error(msg string) {
 // ----------------------------------------------------------------------------
 
 func (p *Parser) declareSymbol(name string, kind ast.SymbolKind, flags ast.SymbolFlags) ast.Ref {
+	return p.declareSymbolAt(name, kind, flags, p.current().Start)
+}
+
+func (p *Parser) declareSymbolAt(name string, kind ast.SymbolKind, flags ast.SymbolFlags, loc int) ast.Ref {
 	ref := ast.Ref{InnerIndex: uint32(len(p.symbols))}
 
 	p.symbols = append(p.symbols, ast.Symbol{
@@ -187,14 +191,21 @@ func (p *Parser) declareSymbol(name string, kind ast.SymbolKind, flags ast.Symbo
 		UseCount:     0, // Will be counted in visit pass
 	})
 
-	p.scope.Members[name] = ref
+	// Store declaration location for text-order scoping
+	p.scope.Members[name] = ast.ScopeMember{Ref: ref, Loc: loc}
 	return ref
 }
 
 func (p *Parser) lookupSymbol(name string) (ast.Ref, bool) {
 	for scope := p.scope; scope != nil; scope = scope.Parent {
-		if ref, ok := scope.Members[name]; ok {
-			return ref, true
+		if member, ok := scope.Members[name]; ok {
+			// Module scope symbols are always visible (scope.Parent == nil)
+			// Local symbols are only visible if declared before current location
+			// During parse pass (currentLoc == 0), we allow all lookups
+			if scope.Parent == nil || p.currentLoc == 0 || member.Loc < p.currentLoc {
+				return member.Ref, true
+			}
+			// Symbol exists but declared after current location - continue to outer scope
 		}
 	}
 	return ast.InvalidRef(), false
@@ -379,6 +390,8 @@ func (p *Parser) visitExpr(e ast.Expr) ast.Expr {
 
 	switch expr := e.(type) {
 	case *ast.IdentExpr:
+		// Set current location for text-order scoping
+		p.currentLoc = int(expr.Loc.Start)
 		// Bind identifier to symbol and increment use count
 		if ref, ok := p.lookupSymbol(expr.Name); ok {
 			expr.Ref = ref
@@ -417,7 +430,13 @@ func (p *Parser) visitExpr(e ast.Expr) ast.Expr {
 		return expr
 
 	case *ast.CallExpr:
-		expr.Func = p.visitExpr(expr.Func)
+		if expr.Func != nil {
+			expr.Func = p.visitExpr(expr.Func)
+		}
+		// Visit template type to bind user-defined types in templated constructors
+		if expr.TemplateType != nil {
+			p.visitType(expr.TemplateType)
+		}
 		for i := range expr.Args {
 			expr.Args[i] = p.visitExpr(expr.Args[i])
 		}
@@ -482,6 +501,8 @@ func (p *Parser) visitType(t ast.Type) {
 
 	switch typ := t.(type) {
 	case *ast.IdentType:
+		// Set current location for text-order scoping
+		p.currentLoc = int(typ.Loc.Start)
 		// Bind identifier to symbol (struct or type alias)
 		if ref, ok := p.lookupSymbol(typ.Name); ok {
 			typ.Ref = ref
@@ -499,7 +520,9 @@ func (p *Parser) visitType(t ast.Type) {
 
 	case *ast.ArrayType:
 		p.visitType(typ.ElemType)
-		// Size expression is already visited in visitExpr if needed
+		if typ.Size != nil {
+			p.visitExpr(typ.Size)
+		}
 
 	case *ast.PtrType:
 		p.visitType(typ.ElemType)
@@ -838,7 +861,7 @@ func (p *Parser) parseConstDecl() *ast.ConstDecl {
 	decl := &ast.ConstDecl{}
 
 	if tok, ok := p.expect(lexer.TokIdent); ok {
-		decl.Name = p.declareSymbol(tok.Value, ast.SymbolConst, 0)
+		decl.Name = p.declareSymbolAt(tok.Value, ast.SymbolConst, 0, tok.Start)
 	}
 
 	if p.match(lexer.TokColon) {
@@ -857,7 +880,7 @@ func (p *Parser) parseOverrideDecl(attrs []ast.Attribute) *ast.OverrideDecl {
 	decl := &ast.OverrideDecl{Attributes: attrs}
 
 	if tok, ok := p.expect(lexer.TokIdent); ok {
-		decl.Name = p.declareSymbol(tok.Value, ast.SymbolOverride, 0)
+		decl.Name = p.declareSymbolAt(tok.Value, ast.SymbolOverride, 0, tok.Start)
 	}
 
 	if p.match(lexer.TokColon) {
@@ -892,7 +915,7 @@ func (p *Parser) parseVarDecl(attrs []ast.Attribute) *ast.VarDecl {
 	}
 
 	if tok, ok := p.expect(lexer.TokIdent); ok {
-		decl.Name = p.declareSymbol(tok.Value, ast.SymbolVar, flags)
+		decl.Name = p.declareSymbolAt(tok.Value, ast.SymbolVar, flags, tok.Start)
 	}
 
 	if p.match(lexer.TokColon) {
@@ -912,7 +935,7 @@ func (p *Parser) parseLetDecl() *ast.LetDecl {
 	decl := &ast.LetDecl{}
 
 	if tok, ok := p.expect(lexer.TokIdent); ok {
-		decl.Name = p.declareSymbol(tok.Value, ast.SymbolLet, 0)
+		decl.Name = p.declareSymbolAt(tok.Value, ast.SymbolLet, 0, tok.Start)
 	}
 
 	if p.match(lexer.TokColon) {
@@ -945,7 +968,7 @@ func (p *Parser) parseFunctionDecl(attrs []ast.Attribute) *ast.FunctionDecl {
 	}
 
 	if tok, ok := p.expect(lexer.TokIdent); ok {
-		decl.Name = p.declareSymbol(tok.Value, ast.SymbolFunction, flags)
+		decl.Name = p.declareSymbolAt(tok.Value, ast.SymbolFunction, flags, tok.Start)
 	}
 
 	p.pushScope()
@@ -978,7 +1001,7 @@ func (p *Parser) parseParameters() []ast.Parameter {
 		param.Attributes = p.parseAttributes()
 
 		if tok, ok := p.expect(lexer.TokIdent); ok {
-			param.Name = p.declareSymbol(tok.Value, ast.SymbolParameter, 0)
+			param.Name = p.declareSymbolAt(tok.Value, ast.SymbolParameter, 0, tok.Start)
 		}
 
 		p.expect(lexer.TokColon)
@@ -999,7 +1022,7 @@ func (p *Parser) parseStructDecl() *ast.StructDecl {
 	decl := &ast.StructDecl{}
 
 	if tok, ok := p.expect(lexer.TokIdent); ok {
-		decl.Name = p.declareSymbol(tok.Value, ast.SymbolStruct, 0)
+		decl.Name = p.declareSymbolAt(tok.Value, ast.SymbolStruct, 0, tok.Start)
 	}
 
 	p.expect(lexer.TokLBrace)
@@ -1010,7 +1033,7 @@ func (p *Parser) parseStructDecl() *ast.StructDecl {
 		member.Attributes = p.parseAttributes()
 
 		if tok, ok := p.expect(lexer.TokIdent); ok {
-			member.Name = p.declareSymbol(tok.Value, ast.SymbolMember, 0)
+			member.Name = p.declareSymbolAt(tok.Value, ast.SymbolMember, 0, tok.Start)
 		}
 
 		p.expect(lexer.TokColon)
@@ -1037,7 +1060,7 @@ func (p *Parser) parseAliasDecl() *ast.AliasDecl {
 	decl := &ast.AliasDecl{}
 
 	if tok, ok := p.expect(lexer.TokIdent); ok {
-		decl.Name = p.declareSymbol(tok.Value, ast.SymbolAlias, 0)
+		decl.Name = p.declareSymbolAt(tok.Value, ast.SymbolAlias, 0, tok.Start)
 	}
 
 	p.expect(lexer.TokEq)
@@ -1305,7 +1328,7 @@ func (p *Parser) parseTemplatePrimaryExpr() ast.Expr {
 
 	case lexer.TokIdent:
 		p.advance()
-		return &ast.IdentExpr{Name: tok.Value, Ref: ast.InvalidRef()}
+		return &ast.IdentExpr{Loc: ast.Loc{Start: int32(tok.Start)}, Name: tok.Value, Ref: ast.InvalidRef()}
 
 	case lexer.TokLParen:
 		p.advance()
@@ -1597,6 +1620,7 @@ func (p *Parser) parsePrimaryExpr() ast.Expr {
 	case lexer.TokIdent:
 		p.advance()
 		name := tok.Value
+		loc := ast.Loc{Start: int32(tok.Start)}
 
 		// Check for templated type constructor: array<T, N>(...) or vec2<f32>(...)
 		// Only consider this if the identifier looks like a type constructor
@@ -1606,7 +1630,7 @@ func (p *Parser) parsePrimaryExpr() ast.Expr {
 		}
 
 		// Note: ref binding happens in visit pass
-		return &ast.IdentExpr{Name: name, Ref: ast.InvalidRef()}
+		return &ast.IdentExpr{Loc: loc, Name: name, Ref: ast.InvalidRef()}
 
 	case lexer.TokLParen:
 		p.advance()
@@ -1641,69 +1665,25 @@ func isTemplatedTypeName(name string) bool {
 
 // parseTemplatedConstructor parses a templated type constructor like array<T, N>(...) or vec2<f32>(...)
 func (p *Parser) parseTemplatedConstructor(name string) ast.Expr {
-	// Parse template arguments and build the full templated type name
-	p.expect(lexer.TokLt)
-
-	// Build the full templated type name by collecting tokens
-	var templateArgs strings.Builder
-	templateArgs.WriteString(name)
-	templateArgs.WriteString("<")
-
-	depth := 1
-	first := true
-	for depth > 0 && p.current().Kind != lexer.TokEOF {
-		tok := p.current()
-		switch tok.Kind {
-		case lexer.TokLt:
-			depth++
-			templateArgs.WriteString("<")
-		case lexer.TokGt:
-			depth--
-			if depth > 0 {
-				templateArgs.WriteString(">")
-			}
-		case lexer.TokComma:
-			templateArgs.WriteString(",")
-		case lexer.TokIdent:
-			if !first {
-				// Space before identifier if not first token
-			}
-			templateArgs.WriteString(tok.Value)
-		case lexer.TokIntLiteral, lexer.TokFloatLiteral:
-			templateArgs.WriteString(tok.Value)
-		default:
-			// Handle other tokens (like nested types)
-			if tok.Value != "" {
-				templateArgs.WriteString(tok.Value)
-			}
-		}
-		first = false
-		if depth > 0 {
-			p.advance()
-		}
-	}
-
-	p.expect(lexer.TokGt)
-	templateArgs.WriteString(">")
-
-	fullTypeName := templateArgs.String()
+	// Parse the templated type using existing infrastructure
+	// parseTemplatedType expects '<' to not be consumed yet
+	templatedType := p.parseTemplatedType(name)
 
 	// Now expect the constructor call
 	if p.current().Kind != lexer.TokLParen {
-		// Not a constructor, just return the identifier
+		// Not a constructor, just return as identifier
 		// (This handles things like array<f32, N> as a type, not a call)
-		return &ast.IdentExpr{Name: fullTypeName, Ref: ast.InvalidRef()}
+		return &ast.IdentExpr{Name: name, Ref: ast.InvalidRef()}
 	}
 
-	p.advance() // (
+	p.advance() // consume (
 	args := p.parseExpressionList()
 	p.expect(lexer.TokRParen)
 
-	// Create a call expression with the full templated type name
-	// The function is represented as an identifier (the type constructor)
+	// Create a call expression with the parsed template type
 	return &ast.CallExpr{
-		Func: &ast.IdentExpr{Name: fullTypeName, Ref: ast.InvalidRef()},
-		Args: args,
+		TemplateType: templatedType,
+		Args:         args,
 	}
 }
 

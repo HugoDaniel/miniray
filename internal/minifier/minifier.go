@@ -6,6 +6,7 @@ package minifier
 
 import (
 	"github.com/HugoDaniel/miniray/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/dce"
 	"github.com/HugoDaniel/miniray/internal/parser"
 	"github.com/HugoDaniel/miniray/internal/printer"
 	"github.com/HugoDaniel/miniray/internal/renamer"
@@ -30,6 +31,10 @@ type Options struct {
 	// Default is false - bindings keep original names for easier debugging.
 	MangleExternalBindings bool
 
+	// TreeShaking enables dead code elimination.
+	// Removes declarations that are not reachable from entry points.
+	TreeShaking bool
+
 	// KeepNames prevents specific names from being renamed
 	KeepNames []string
 }
@@ -41,6 +46,7 @@ func DefaultOptions() Options {
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
 		MangleProps:       false,
+		TreeShaking:       true,
 	}
 }
 
@@ -65,10 +71,11 @@ type Error struct {
 
 // Stats provides minification statistics.
 type Stats struct {
-	OriginalSize  int
-	MinifiedSize  int
-	SymbolsTotal  int
+	OriginalSize   int
+	MinifiedSize   int
+	SymbolsTotal   int
 	SymbolsRenamed int
+	SymbolsDead    int // Number of symbols removed by tree shaking
 }
 
 // Minifier performs WGSL minification.
@@ -130,15 +137,18 @@ func (m *Minifier) MinifyModule(module *ast.Module) Result {
 	// Mark API-facing symbols as non-renameable
 	m.markAPIFacingSymbols(module)
 
+	// Run dead code elimination if enabled
+	if m.options.TreeShaking {
+		result.Stats.SymbolsDead = dce.Mark(module)
+	} else {
+		// Mark all symbols as live if tree shaking is disabled
+		for i := range module.Symbols {
+			module.Symbols[i].Flags |= ast.IsLive
+		}
+	}
+
 	// Compute symbol usage before renaming
 	uses := m.computeSymbolUsage(module)
-
-	// Build external binding aliases - maps original ref to alias name
-	// Only needed when NOT mangling external bindings (the default)
-	var externalAliases []ExternalAlias
-	if m.options.MinifyIdentifiers && !m.options.MangleExternalBindings {
-		externalAliases = m.buildExternalAliases(module, uses, reserved)
-	}
 
 	// Create renamer
 	var ren printer.Renamer
@@ -152,23 +162,13 @@ func (m *Minifier) MinifyModule(module *ast.Module) Result {
 		ren = renamer.NewNoOpRenamer(module.Symbols)
 	}
 
-	// Convert external aliases to printer format
-	var printerAliases []printer.ExternalAlias
-	for _, a := range externalAliases {
-		printerAliases = append(printerAliases, printer.ExternalAlias{
-			OriginalRef:  a.OriginalRef,
-			OriginalName: a.OriginalName,
-			AliasName:    a.AliasName,
-		})
-	}
-
 	// Print
 	p := printer.New(printer.Options{
 		MinifyWhitespace:  m.options.MinifyWhitespace,
 		MinifyIdentifiers: m.options.MinifyIdentifiers,
 		MinifySyntax:      m.options.MinifySyntax,
+		TreeShaking:       m.options.TreeShaking,
 		Renamer:           ren,
-		ExternalAliases:   printerAliases,
 	}, module.Symbols)
 
 	result.Code = p.Print(module)
@@ -176,79 +176,6 @@ func (m *Minifier) MinifyModule(module *ast.Module) Result {
 	result.Stats.SymbolsTotal = len(module.Symbols)
 
 	return result
-}
-
-// ExternalAlias represents an alias for an external binding.
-type ExternalAlias struct {
-	OriginalRef  ast.Ref
-	OriginalName string
-	AliasName    string
-}
-
-// buildExternalAliases creates short aliases for external bindings that are used.
-func (m *Minifier) buildExternalAliases(module *ast.Module, uses map[ast.Ref]uint32, reserved map[string]bool) []ExternalAlias {
-	var aliases []ExternalAlias
-
-	// Find external bindings that are used
-	type bindingWithCount struct {
-		ref   ast.Ref
-		name  string
-		count uint32
-	}
-
-	var bindings []bindingWithCount
-	for i := range module.Symbols {
-		sym := &module.Symbols[i]
-		if sym.Flags.Has(ast.IsExternalBinding) {
-			ref := ast.Ref{InnerIndex: uint32(i)}
-			if count, ok := uses[ref]; ok && count > 0 {
-				bindings = append(bindings, bindingWithCount{
-					ref:   ref,
-					name:  sym.OriginalName,
-					count: count,
-				})
-			}
-		}
-	}
-
-	if len(bindings) == 0 {
-		return nil
-	}
-
-	// Sort by usage count (most used first for shorter names)
-	for i := 0; i < len(bindings)-1; i++ {
-		for j := i + 1; j < len(bindings); j++ {
-			if bindings[j].count > bindings[i].count {
-				bindings[i], bindings[j] = bindings[j], bindings[i]
-			}
-		}
-	}
-
-	// Generate alias names
-	nameGen := renamer.DefaultNameMinifier()
-	nameIdx := 0
-	for _, b := range bindings {
-		// Find next available name
-		var aliasName string
-		for {
-			aliasName = nameGen.NumberToMinifiedName(nameIdx)
-			nameIdx++
-			// Skip reserved names and the original name itself
-			if !reserved[aliasName] && aliasName != b.name {
-				break
-			}
-		}
-		// Add to reserved to avoid conflicts
-		reserved[aliasName] = true
-
-		aliases = append(aliases, ExternalAlias{
-			OriginalRef:  b.ref,
-			OriginalName: b.name,
-			AliasName:    aliasName,
-		})
-	}
-
-	return aliases
 }
 
 // markAPIFacingSymbols marks symbols that cannot be renamed.

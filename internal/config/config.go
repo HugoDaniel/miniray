@@ -1,6 +1,6 @@
 // Package config handles loading minifier configuration from files.
 //
-// Configuration can be specified in a JSON file named miniray.json or .minirayrc.
+// Configuration can be specified in a JSON file named wgslmin.json or .wgslminrc.
 // The config file is searched for in the current directory and parent directories.
 package config
 
@@ -31,15 +31,18 @@ type Config struct {
 	// are mangled directly (true) or kept with original names and aliased (false)
 	MangleExternalBindings *bool `json:"mangleExternalBindings,omitempty"`
 
+	// TreeShaking enables dead code elimination (default true)
+	TreeShaking *bool `json:"treeShaking,omitempty"`
+
 	// KeepNames lists identifier names that should not be renamed
 	KeepNames []string `json:"keepNames,omitempty"`
 }
 
 // ConfigFileNames are the names searched for config files, in order of preference.
 var ConfigFileNames = []string{
-	"miniray.json",
-	".minirayrc",
-	".minirayrc.json",
+	"wgslmin.json",
+	".wgslminrc",
+	".wgslminrc.json",
 }
 
 // Load searches for a config file starting from the given directory
@@ -99,6 +102,9 @@ func (c *Config) ToOptions() minifier.Options {
 	if c.MangleExternalBindings != nil {
 		opts.MangleExternalBindings = *c.MangleExternalBindings
 	}
+	if c.TreeShaking != nil {
+		opts.TreeShaking = *c.TreeShaking
+	}
 	if len(c.KeepNames) > 0 {
 		opts.KeepNames = c.KeepNames
 	}
@@ -115,6 +121,7 @@ type MergeOptions struct {
 	MinifySyntax           *bool
 	MangleExternalBindings *bool
 	NoMangle               bool
+	NoTreeShaking          bool
 	KeepNames              []string
 }
 
@@ -138,6 +145,9 @@ func (c *Config) Merge(cli MergeOptions) minifier.Options {
 	}
 	if cli.NoMangle {
 		opts.MinifyIdentifiers = false
+	}
+	if cli.NoTreeShaking {
+		opts.TreeShaking = false
 	}
 	if len(cli.KeepNames) > 0 {
 		// Append CLI keep names to config keep names

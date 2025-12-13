@@ -141,6 +141,10 @@ const (
 	// IsExternalBinding marks uniform/storage variables that are bound via @group/@binding.
 	// These keep their original names in declarations but get aliased before use.
 	IsExternalBinding
+
+	// IsLive marks symbols that are reachable from entry points.
+	// Used by dead code elimination to filter unused declarations.
+	IsLive
 )
 
 // Has returns true if the flag is set.
@@ -597,10 +601,11 @@ const (
 
 // CallExpr represents a function call or type constructor.
 type CallExpr struct {
-	Loc   Loc
-	Func  Expr      // IdentExpr or type expression
-	Args  []Expr
-	Flags ExprFlags // Purity flags
+	Loc          Loc
+	Func         Expr      // IdentExpr for function name (nil if TemplateType is set)
+	TemplateType Type      // For templated constructors: array<T, N>, vec2<T>, etc.
+	Args         []Expr
+	Flags        ExprFlags // Purity flags
 }
 
 func (*CallExpr) isExpr() {}
@@ -798,11 +803,17 @@ func (*DeclStmt) isStmt() {}
 // Scope
 // ----------------------------------------------------------------------------
 
+// ScopeMember represents a symbol in a scope with its declaration location.
+type ScopeMember struct {
+	Ref Ref
+	Loc int // Source position where declared (for text-order scoping)
+}
+
 // Scope represents a lexical scope.
 type Scope struct {
 	Parent   *Scope
 	Children []*Scope
-	Members  map[string]Ref
+	Members  map[string]ScopeMember
 
 	// For minification: whether this scope contains direct eval (always false in WGSL)
 	// Kept for structural similarity with esbuild
@@ -813,7 +824,7 @@ type Scope struct {
 func NewScope(parent *Scope) *Scope {
 	return &Scope{
 		Parent:  parent,
-		Members: make(map[string]Ref),
+		Members: make(map[string]ScopeMember),
 	}
 }
 

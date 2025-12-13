@@ -1,9 +1,9 @@
-// Command miniray minifies WGSL shader source code.
+// Command wgslmin minifies WGSL shader source code.
 //
 // Usage:
 //
-//	miniray [options] <input.wgsl>
-//	cat input.wgsl | miniray [options]
+//	wgslmin [options] <input.wgsl>
+//	cat input.wgsl | wgslmin [options]
 //
 // Options:
 //
@@ -22,10 +22,10 @@
 //
 // Config file:
 //
-//	miniray looks for miniray.json or .minirayrc in the current directory
+//	wgslmin looks for wgslmin.json or .wgslminrc in the current directory
 //	and parent directories. Config file options are overridden by CLI flags.
 //
-// Example miniray.json:
+// Example wgslmin.json:
 //
 //	{
 //	    "minifyWhitespace": true,
@@ -72,6 +72,7 @@ func run() error {
 		minifySyntax           bool
 		noMangle               bool
 		mangleExternalBindings bool
+		noTreeShaking          bool
 		keepNames              string
 		showVersion            bool
 		showHelp               bool
@@ -86,24 +87,25 @@ func run() error {
 	flag.BoolVar(&minifySyntax, "minify-syntax", false, "Apply syntax optimizations")
 	flag.BoolVar(&noMangle, "no-mangle", false, "Don't rename identifiers")
 	flag.BoolVar(&mangleExternalBindings, "mangle-external-bindings", false, "Rename uniform/storage vars directly")
+	flag.BoolVar(&noTreeShaking, "no-tree-shaking", false, "Disable dead code elimination")
 	flag.StringVar(&keepNames, "keep-names", "", "Comma-separated names to preserve")
 	flag.BoolVar(&showVersion, "version", false, "Print version and exit")
 	flag.BoolVar(&showHelp, "help", false, "Print help and exit")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "miniray - WGSL Minifier v%s\n\n", version)
-		fmt.Fprintf(os.Stderr, "Usage: miniray [options] <input.wgsl>\n")
-		fmt.Fprintf(os.Stderr, "       cat input.wgsl | miniray [options]\n\n")
+		fmt.Fprintf(os.Stderr, "wgslmin - WGSL Minifier v%s\n\n", version)
+		fmt.Fprintf(os.Stderr, "Usage: wgslmin [options] <input.wgsl>\n")
+		fmt.Fprintf(os.Stderr, "       cat input.wgsl | wgslmin [options]\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nConfig file:\n")
-		fmt.Fprintf(os.Stderr, "  Searches for miniray.json or .minirayrc in current and parent directories.\n")
+		fmt.Fprintf(os.Stderr, "  Searches for wgslmin.json or .wgslminrc in current and parent directories.\n")
 		fmt.Fprintf(os.Stderr, "  CLI flags override config file settings.\n")
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  miniray shader.wgsl -o shader.min.wgsl\n")
-		fmt.Fprintf(os.Stderr, "  cat shader.wgsl | miniray > shader.min.wgsl\n")
-		fmt.Fprintf(os.Stderr, "  miniray --no-mangle shader.wgsl\n")
-		fmt.Fprintf(os.Stderr, "  miniray --mangle-external-bindings shader.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  wgslmin shader.wgsl -o shader.min.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  cat shader.wgsl | wgslmin > shader.min.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  wgslmin --no-mangle shader.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  wgslmin --mangle-external-bindings shader.wgsl\n")
 	}
 
 	flag.Parse()
@@ -114,7 +116,7 @@ func run() error {
 	}
 
 	if showVersion {
-		fmt.Printf("miniray v%s (%s)\n", version, commit)
+		fmt.Printf("wgslmin v%s (%s)\n", version, commit)
 		return nil
 	}
 
@@ -181,8 +183,9 @@ func run() error {
 
 		// Build CLI overrides - only set if explicitly specified
 		cliOpts := config.MergeOptions{
-			NoMangle:  noMangle,
-			KeepNames: cliKeepNames,
+			NoMangle:      noMangle,
+			NoTreeShaking: noTreeShaking,
+			KeepNames:     cliKeepNames,
 		}
 
 		// Check if specific minify flags were set
@@ -227,6 +230,9 @@ func run() error {
 
 		// Set mangle external bindings
 		opts.MangleExternalBindings = mangleExternalBindings
+
+		// Set tree shaking (on by default)
+		opts.TreeShaking = !noTreeShaking
 
 		// Parse keep-names
 		if keepNames != "" {
