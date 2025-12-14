@@ -17,6 +17,9 @@
 //	--no-mangle                Don't rename identifiers
 //	--mangle-external-bindings Rename uniform/storage vars directly (no aliases)
 //	--keep-names <names>       Comma-separated names to preserve
+//	--source-map               Generate source map file (.map)
+//	--source-map-inline        Embed source map as inline data URI
+//	--source-map-sources       Include original source in source map
 //	--version                  Print version and exit
 //	--help                     Print help and exit
 //
@@ -75,6 +78,9 @@ func run() error {
 		noTreeShaking              bool
 		preserveUniformStructTypes bool
 		keepNames                  string
+		sourceMap                  bool
+		sourceMapInline            bool
+		sourceMapSources           bool
 		showVersion                bool
 		showHelp                   bool
 	)
@@ -91,6 +97,9 @@ func run() error {
 	flag.BoolVar(&noTreeShaking, "no-tree-shaking", false, "Disable dead code elimination")
 	flag.BoolVar(&preserveUniformStructTypes, "preserve-uniform-struct-types", false, "Preserve struct types used in uniform/storage declarations")
 	flag.StringVar(&keepNames, "keep-names", "", "Comma-separated names to preserve")
+	flag.BoolVar(&sourceMap, "source-map", false, "Generate source map file (.map)")
+	flag.BoolVar(&sourceMapInline, "source-map-inline", false, "Embed source map as inline data URI")
+	flag.BoolVar(&sourceMapSources, "source-map-sources", false, "Include original source in source map")
 	flag.BoolVar(&showVersion, "version", false, "Print version and exit")
 	flag.BoolVar(&showHelp, "help", false, "Print help and exit")
 
@@ -251,6 +260,21 @@ func run() error {
 		}
 	}
 
+	// Configure source map options
+	generateSourceMap := sourceMap || sourceMapInline
+	if generateSourceMap {
+		opts.GenerateSourceMap = true
+		opts.SourceMapOptions.IncludeSource = sourceMapSources
+
+		// Determine source and output file names for source map
+		if flag.NArg() > 0 {
+			opts.SourceMapOptions.SourceName = filepath.Base(flag.Arg(0))
+		}
+		if outputFile != "" {
+			opts.SourceMapOptions.File = filepath.Base(outputFile)
+		}
+	}
+
 	// Minify
 	m := minifier.New(opts)
 	result := m.Minify(string(source))
@@ -261,6 +285,14 @@ func run() error {
 			fmt.Fprintf(os.Stderr, "error: %s\n", e.Message)
 		}
 		return fmt.Errorf("minification failed with %d error(s)", len(result.Errors))
+	}
+
+	// Prepare output code
+	outputCode := result.Code
+
+	// Handle inline source map
+	if sourceMapInline && result.SourceMap != nil {
+		outputCode += "\n//# sourceMappingURL=" + result.SourceMap.ToDataURI()
 	}
 
 	// Write output
@@ -274,9 +306,18 @@ func run() error {
 		output = f
 	}
 
-	_, err = io.WriteString(output, result.Code)
+	_, err = io.WriteString(output, outputCode)
 	if err != nil {
 		return fmt.Errorf("writing output: %w", err)
+	}
+
+	// Write external source map file
+	if sourceMap && !sourceMapInline && result.SourceMap != nil && outputFile != "" {
+		mapFile := outputFile + ".map"
+		if err := os.WriteFile(mapFile, []byte(result.SourceMap.ToJSON()), 0644); err != nil {
+			return fmt.Errorf("writing source map: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "Source map: %s\n", mapFile)
 	}
 
 	// Print stats to stderr if output is to file

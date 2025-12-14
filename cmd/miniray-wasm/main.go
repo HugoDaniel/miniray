@@ -22,6 +22,8 @@ type jsOptions struct {
 	TreeShaking                *bool    `json:"treeShaking"`
 	PreserveUniformStructTypes *bool    `json:"preserveUniformStructTypes"`
 	KeepNames                  []string `json:"keepNames"`
+	SourceMap                  *bool    `json:"sourceMap"`
+	SourceMapSources           *bool    `json:"sourceMapSources"`
 }
 
 func main() {
@@ -76,6 +78,12 @@ func minifyJS(this js.Value, args []js.Value) interface{} {
 		if jsOpts.KeepNames != nil {
 			opts.KeepNames = jsOpts.KeepNames
 		}
+		if jsOpts.SourceMap != nil {
+			opts.GenerateSourceMap = *jsOpts.SourceMap
+		}
+		if jsOpts.SourceMapSources != nil {
+			opts.SourceMapOptions.IncludeSource = *jsOpts.SourceMapSources
+		}
 	}
 
 	// Run minification
@@ -92,13 +100,20 @@ func minifyJS(this js.Value, args []js.Value) interface{} {
 		}
 	}
 
-	// Return result object
-	return map[string]interface{}{
+	// Build result object
+	resultObj := map[string]interface{}{
 		"code":         result.Code,
 		"errors":       errors,
 		"originalSize": result.Stats.OriginalSize,
 		"minifiedSize": result.Stats.MinifiedSize,
 	}
+
+	// Include source map if generated
+	if result.SourceMap != nil {
+		resultObj["sourceMap"] = result.SourceMap.ToJSON()
+	}
+
+	return resultObj
 }
 
 // parseOptions extracts options from a JS object.
@@ -142,6 +157,14 @@ func parseOptions(jsVal js.Value) jsOptions {
 		for i := 0; i < length; i++ {
 			opts.KeepNames[i] = v.Index(i).String()
 		}
+	}
+	if v := jsVal.Get("sourceMap"); !v.IsUndefined() {
+		b := v.Bool()
+		opts.SourceMap = &b
+	}
+	if v := jsVal.Get("sourceMapSources"); !v.IsUndefined() {
+		b := v.Bool()
+		opts.SourceMapSources = &b
 	}
 
 	return opts

@@ -13,6 +13,7 @@ import (
 
 	"github.com/HugoDaniel/miniray/internal/ast"
 	"github.com/HugoDaniel/miniray/internal/dce"
+	"github.com/HugoDaniel/miniray/internal/sourcemap"
 )
 
 // Options controls printer output.
@@ -31,6 +32,9 @@ type Options struct {
 
 	// Renamer provides minified names (nil for no renaming)
 	Renamer Renamer
+
+	// SourceMapGen is the source map generator (nil to disable)
+	SourceMapGen *sourcemap.Generator
 }
 
 // Renamer provides minified names for symbols.
@@ -48,6 +52,10 @@ type Printer struct {
 
 	// Track if we need whitespace before next token
 	needsSpace bool
+
+	// Position tracking for source maps
+	outputLine int
+	outputCol  int
 }
 
 // New creates a new printer.
@@ -71,14 +79,29 @@ func (p *Printer) Print(module *ast.Module) string {
 
 func (p *Printer) print(s string) {
 	p.buf.WriteString(s)
+	p.updatePosition(s)
 	p.needsSpace = false
+}
+
+// updatePosition updates output line and column after printing a string.
+func (p *Printer) updatePosition(s string) {
+	for _, c := range s {
+		if c == '\n' {
+			p.outputLine++
+			p.outputCol = 0
+		} else {
+			p.outputCol++
+		}
+	}
 }
 
 func (p *Printer) printSpace() {
 	if !p.options.MinifyWhitespace {
 		p.buf.WriteByte(' ')
+		p.outputCol++
 	} else if p.needsSpace {
 		p.buf.WriteByte(' ')
+		p.outputCol++
 	}
 	p.needsSpace = false
 }
@@ -86,8 +109,11 @@ func (p *Printer) printSpace() {
 func (p *Printer) printNewline() {
 	if !p.options.MinifyWhitespace {
 		p.buf.WriteByte('\n')
+		p.outputLine++
+		p.outputCol = 0
 		for i := 0; i < p.indent; i++ {
 			p.buf.WriteString("    ")
+			p.outputCol += 4
 		}
 	}
 	p.needsSpace = false
@@ -99,10 +125,30 @@ func (p *Printer) printSemicolon() {
 }
 
 func (p *Printer) printName(ref ast.Ref) {
+	if !ref.IsValid() || int(ref.InnerIndex) >= len(p.symbols) {
+		return
+	}
+
+	sym := &p.symbols[ref.InnerIndex]
+
+	// Record source map mapping before printing
+	if p.options.SourceMapGen != nil {
+		// Determine if we need to record the original name
+		originalName := ""
+		if p.options.MinifyIdentifiers && p.options.Renamer != nil {
+			renamedName := p.options.Renamer.NameForSymbol(ref)
+			if renamedName != sym.OriginalName {
+				originalName = sym.OriginalName
+			}
+		}
+		p.options.SourceMapGen.AddMapping(p.outputLine, p.outputCol, int(sym.Loc.Start), originalName)
+	}
+
+	// Print the name
 	if p.options.MinifyIdentifiers && p.options.Renamer != nil {
 		p.print(p.options.Renamer.NameForSymbol(ref))
-	} else if ref.IsValid() && int(ref.InnerIndex) < len(p.symbols) {
-		p.print(p.symbols[ref.InnerIndex].OriginalName)
+	} else {
+		p.print(sym.OriginalName)
 	}
 }
 

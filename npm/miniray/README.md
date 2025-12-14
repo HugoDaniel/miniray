@@ -82,6 +82,8 @@ interface MinifyOptions {
   treeShaking?: boolean;                // Remove unused declarations (default: true)
   preserveUniformStructTypes?: boolean; // Keep struct types used in uniforms (default: false)
   keepNames?: string[];                 // Names to preserve from renaming
+  sourceMap?: boolean;                  // Generate source map (default: false)
+  sourceMapSources?: boolean;           // Include source in sourcesContent (default: false)
 }
 
 interface MinifyResult {
@@ -89,6 +91,7 @@ interface MinifyResult {
   errors: MinifyError[];  // Parse/minification errors
   originalSize: number;   // Input size in bytes
   minifiedSize: number;   // Output size in bytes
+  sourceMap?: string;     // Source map JSON (if sourceMap: true)
 }
 ```
 
@@ -178,6 +181,85 @@ minify(source, {
   minifyIdentifiers: true,
   keepNames: ['myHelper', 'computeValue'],
 });
+```
+
+### `sourceMap`
+
+Generate a source map to debug minified shaders by mapping back to original source:
+
+```javascript
+const result = minify(source, {
+  minifyIdentifiers: true,
+  sourceMap: true,
+});
+
+console.log(result.code);
+// "const a=42;fn b()->i32{return a;}"
+
+console.log(result.sourceMap);
+// '{"version":3,"sources":[],"names":["longVariable","myFunction"],"mappings":"MAAAA,..."}'
+```
+
+The source map follows the [Source Map v3 specification](https://sourcemaps.info/spec.html) and includes:
+- `version`: Always 3
+- `names`: Original names of renamed identifiers
+- `mappings`: VLQ-encoded position mappings
+
+### `sourceMapSources`
+
+Include the original source code in the source map's `sourcesContent` field for self-contained debugging:
+
+```javascript
+const result = minify(source, {
+  sourceMap: true,
+  sourceMapSources: true,  // Embed original source
+});
+
+const map = JSON.parse(result.sourceMap);
+console.log(map.sourcesContent);
+// ["const longVariable = 42;\nfn myFunction() -> i32 { return longVariable; }"]
+```
+
+### Source Map Example: Complete Workflow
+
+```javascript
+import { initialize, minify } from 'miniray';
+
+await initialize({ wasmURL: '/miniray.wasm' });
+
+const source = `
+const longVariableName = 42;
+
+fn helperFunction(value: i32) -> i32 {
+    return value * 2;
+}
+
+@compute @workgroup_size(1)
+fn main() {
+    let result = helperFunction(longVariableName);
+}
+`;
+
+const result = minify(source, {
+  minifyWhitespace: true,
+  minifyIdentifiers: true,
+  sourceMap: true,
+  sourceMapSources: true,
+});
+
+console.log('Minified code:');
+console.log(result.code);
+// "const a=42;fn b(c:i32)->i32{return c*2;}@compute @workgroup_size(1) fn main(){let d=b(a);}"
+
+console.log('\nSource map:');
+const map = JSON.parse(result.sourceMap);
+console.log('Names:', map.names);
+// Names: ["longVariableName", "helperFunction", "value", "result"]
+
+// To use the source map inline:
+const codeWithSourceMap = result.code +
+  '\n//# sourceMappingURL=data:application/json;base64,' +
+  btoa(result.sourceMap);
 ```
 
 ## Using with Bundlers

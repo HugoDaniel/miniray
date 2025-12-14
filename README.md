@@ -11,6 +11,7 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspir
 - **Whitespace minification** - Remove unnecessary whitespace and newlines
 - **Identifier renaming** - Shorten local variable and function names
 - **Syntax optimization** - Optimize numeric literals and syntax patterns
+- **Source maps** - Generate v3 source maps for debugging minified shaders
 - **API-aware** - Preserves entry point names, `@location`, `@binding`, and `@builtin` declarations
 - **WebAssembly build** - Run in browsers and Node.js via `miniray` package
 
@@ -87,6 +88,9 @@ miniray --config myconfig.json shader.wgsl
 | `--no-tree-shaking` | Disable dead code elimination |
 | `--preserve-uniform-struct-types` | Preserve struct types used in uniforms |
 | `--keep-names <names>` | Comma-separated names to preserve |
+| `--source-map` | Generate source map file (.map) |
+| `--source-map-inline` | Embed source map as inline data URI |
+| `--source-map-sources` | Include original source in source map |
 | `--version` | Print version and exit |
 | `--help` | Print help and exit |
 
@@ -172,6 +176,67 @@ fn helper(t: f32) -> f32 { return t * 2.0; }
 struct PngineInputs{time:f32,canvasW:f32}@group(0) @binding(0) var<uniform> inputs:PngineInputs;fn a(b:f32)->f32{return b*2.;}@vertex fn vs()->@builtin(position) vec4f{let c=a(inputs.time);return vec4f(c);}
 ```
 
+### Source Maps
+
+Generate source maps to debug minified shaders by mapping back to original source positions.
+
+```bash
+# Generate external source map file (.map)
+miniray -o shader.min.wgsl --source-map shader.wgsl
+# Creates: shader.min.wgsl and shader.min.wgsl.map
+
+# Embed source map as inline data URI
+miniray --source-map-inline shader.wgsl > shader.min.wgsl
+
+# Include original source in source map (self-contained)
+miniray -o shader.min.wgsl --source-map --source-map-sources shader.wgsl
+```
+
+The generated source map follows the [Source Map v3 specification](https://sourcemaps.info/spec.html):
+
+```json
+{
+  "version": 3,
+  "file": "shader.min.wgsl",
+  "sources": ["shader.wgsl"],
+  "sourcesContent": ["...original source..."],
+  "names": ["longVariableName", "helperFunction"],
+  "mappings": "MAAAA,QAAAC,..."
+}
+```
+
+**What gets mapped:**
+- Renamed identifiers (variables, functions, structs) → original names in `names` array
+- Generated positions → source positions via VLQ-encoded `mappings`
+
+#### WebGPU Compatibility
+
+WebGPU does **not** natively consume source maps—there's no `sourceMap` field in `GPUShaderModuleDescriptor`. However, miniray's source maps use UTF-16 column positions matching WebGPU's `GPUCompilationMessage` format, making them suitable for custom error translation tooling:
+
+```javascript
+import { SourceMapConsumer } from 'source-map';
+
+// Minify with source map
+const result = minify(source, { sourceMap: true, sourceMapSources: true });
+const module = device.createShaderModule({ code: result.code });
+
+// Translate compilation errors back to original source
+const info = await module.getCompilationInfo();
+const consumer = await new SourceMapConsumer(JSON.parse(result.sourceMap));
+
+for (const msg of info.messages) {
+  if (msg.lineNum > 0) {
+    const pos = consumer.originalPositionFor({
+      line: msg.lineNum,
+      column: msg.linePos - 1  // source-map lib uses 0-based columns
+    });
+    console.log(`${msg.type}: ${msg.message}`);
+    console.log(`  Original: ${pos.source}:${pos.line}:${pos.column + 1}`);
+    if (pos.name) console.log(`  Identifier was: ${pos.name}`);
+  }
+}
+```
+
 ### Go API
 
 ```go
@@ -197,6 +262,24 @@ result := api.MinifyWhitespaceOnly(source)
 fmt.Printf("Minified: %d -> %d bytes\n",
     result.OriginalSize, result.MinifiedSize)
 fmt.Println(result.Code)
+```
+
+#### Source Maps in Go
+
+```go
+result := api.MinifyWithOptions(source, api.MinifyOptions{
+    MinifyIdentifiers: true,
+    SourceMap: true,
+    SourceMapOptions: api.SourceMapOptions{
+        File:          "shader.min.wgsl",
+        SourceName:    "shader.wgsl",
+        IncludeSource: true,
+    },
+})
+
+// result.SourceMap contains JSON string
+// result.SourceMapDataURI contains data:application/json;base64,... for inline embedding
+fmt.Println(result.SourceMap)
 ```
 
 ## What Gets Minified

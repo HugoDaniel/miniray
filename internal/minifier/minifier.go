@@ -10,6 +10,7 @@ import (
 	"github.com/HugoDaniel/miniray/internal/parser"
 	"github.com/HugoDaniel/miniray/internal/printer"
 	"github.com/HugoDaniel/miniray/internal/renamer"
+	"github.com/HugoDaniel/miniray/internal/sourcemap"
 )
 
 // Options controls minification behavior.
@@ -43,6 +44,24 @@ type Options struct {
 
 	// KeepNames prevents specific names from being renamed
 	KeepNames []string
+
+	// GenerateSourceMap enables source map generation
+	GenerateSourceMap bool
+
+	// SourceMapOptions configures source map output
+	SourceMapOptions SourceMapOptions
+}
+
+// SourceMapOptions configures source map generation.
+type SourceMapOptions struct {
+	// File is the name of the generated file (for the "file" field)
+	File string
+
+	// SourceName is the name of the original source (for the "sources" array)
+	SourceName string
+
+	// IncludeSource embeds the original source in "sourcesContent"
+	IncludeSource bool
 }
 
 // DefaultOptions returns options for maximum minification.
@@ -66,6 +85,9 @@ type Result struct {
 
 	// Statistics about the minification
 	Stats Stats
+
+	// SourceMap is the generated source map (nil if not requested)
+	SourceMap *sourcemap.SourceMap
 }
 
 // Error represents a minification error.
@@ -120,16 +142,24 @@ func (m *Minifier) Minify(source string) Result {
 	}
 
 	// 3. Minify the parsed module
-	moduleResult := m.MinifyModule(module)
+	moduleResult := m.MinifyModuleWithSource(module, source)
 	result.Code = moduleResult.Code
 	result.Stats = moduleResult.Stats
 	result.Stats.OriginalSize = len(source)
+	result.SourceMap = moduleResult.SourceMap
 
 	return result
 }
 
 // MinifyModule minifies a pre-parsed AST module.
+// Note: Source map generation is not available without the original source.
+// Use MinifyModuleWithSource for source map support.
 func (m *Minifier) MinifyModule(module *ast.Module) Result {
+	return m.MinifyModuleWithSource(module, "")
+}
+
+// MinifyModuleWithSource minifies a pre-parsed AST module with source map support.
+func (m *Minifier) MinifyModuleWithSource(module *ast.Module, source string) Result {
 	result := Result{}
 
 	// Build reserved names set
@@ -168,6 +198,15 @@ func (m *Minifier) MinifyModule(module *ast.Module) Result {
 		ren = renamer.NewNoOpRenamer(module.Symbols)
 	}
 
+	// Create source map generator if enabled
+	var sourceMapGen *sourcemap.Generator
+	if m.options.GenerateSourceMap {
+		sourceMapGen = sourcemap.NewGenerator(source)
+		sourceMapGen.SetFile(m.options.SourceMapOptions.File)
+		sourceMapGen.SetSourceName(m.options.SourceMapOptions.SourceName)
+		sourceMapGen.IncludeSourceContent(m.options.SourceMapOptions.IncludeSource)
+	}
+
 	// Print
 	p := printer.New(printer.Options{
 		MinifyWhitespace:  m.options.MinifyWhitespace,
@@ -175,11 +214,17 @@ func (m *Minifier) MinifyModule(module *ast.Module) Result {
 		MinifySyntax:      m.options.MinifySyntax,
 		TreeShaking:       m.options.TreeShaking,
 		Renamer:           ren,
+		SourceMapGen:      sourceMapGen,
 	}, module.Symbols)
 
 	result.Code = p.Print(module)
 	result.Stats.MinifiedSize = len(result.Code)
 	result.Stats.SymbolsTotal = len(module.Symbols)
+
+	// Generate source map if enabled
+	if sourceMapGen != nil {
+		result.SourceMap = sourceMapGen.Generate()
+	}
 
 	return result
 }
@@ -409,12 +454,14 @@ func (m *Minifier) countStmtUsage(stmt ast.Stmt, uses map[ast.Ref]uint32) {
 // Convenience Functions
 // ----------------------------------------------------------------------------
 
-// Minify minifies WGSL source with default options.
-func Minify(source string) Result {
-	return New(DefaultOptions()).Minify(source)
-}
-
-// MinifyWithOptions minifies WGSL source with custom options.
-func MinifyWithOptions(source string, options Options) Result {
+// Minify minifies WGSL source with optional custom options.
+// If no options are provided, DefaultOptions() is used.
+func Minify(source string, opts ...Options) Result {
+	var options Options
+	if len(opts) > 0 {
+		options = opts[0]
+	} else {
+		options = DefaultOptions()
+	}
 	return New(options).Minify(source)
 }

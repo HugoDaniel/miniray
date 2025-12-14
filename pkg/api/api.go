@@ -31,6 +31,27 @@ type MinifyOptions struct {
 
 	// KeepNames specifies identifier names that should not be renamed.
 	KeepNames []string
+
+	// SourceMap enables source map generation.
+	// If true, the result will include a source map.
+	SourceMap bool
+
+	// SourceMapOptions configures source map generation.
+	// Only used when SourceMap is true.
+	SourceMapOptions SourceMapOptions
+}
+
+// SourceMapOptions configures source map generation.
+type SourceMapOptions struct {
+	// File is the name of the generated file (for the "file" field in the source map).
+	File string
+
+	// SourceName is the name of the original source file (for the "sources" array).
+	SourceName string
+
+	// IncludeSource embeds the original source code in "sourcesContent".
+	// This makes the source map self-contained but increases its size.
+	IncludeSource bool
 }
 
 // MinifyResult contains the minification output.
@@ -47,6 +68,14 @@ type MinifyResult struct {
 
 	// MinifiedSize is the size of the output in bytes.
 	MinifiedSize int
+
+	// SourceMap is the generated source map as a JSON string.
+	// Empty if source map generation was not requested.
+	SourceMap string
+
+	// SourceMapDataURI is the source map as a data URI for inline embedding.
+	// Empty if source map generation was not requested.
+	SourceMapDataURI string
 }
 
 // Minify minifies WGSL source code with default options.
@@ -68,6 +97,12 @@ func MinifyWithOptions(source string, opts MinifyOptions) MinifyResult {
 		MinifySyntax:           opts.MinifySyntax,
 		MangleExternalBindings: opts.MangleExternalBindings,
 		KeepNames:              opts.KeepNames,
+		GenerateSourceMap:      opts.SourceMap,
+		SourceMapOptions: minifier.SourceMapOptions{
+			File:          opts.SourceMapOptions.File,
+			SourceName:    opts.SourceMapOptions.SourceName,
+			IncludeSource: opts.SourceMapOptions.IncludeSource,
+		},
 	})
 
 	result := m.Minify(source)
@@ -78,12 +113,20 @@ func MinifyWithOptions(source string, opts MinifyOptions) MinifyResult {
 		errors[i] = e.Message
 	}
 
-	return MinifyResult{
+	apiResult := MinifyResult{
 		Code:         result.Code,
 		Errors:       errors,
 		OriginalSize: result.Stats.OriginalSize,
 		MinifiedSize: result.Stats.MinifiedSize,
 	}
+
+	// Include source map if generated
+	if result.SourceMap != nil {
+		apiResult.SourceMap = result.SourceMap.ToJSON()
+		apiResult.SourceMapDataURI = result.SourceMap.ToDataURI()
+	}
+
+	return apiResult
 }
 
 // MinifyWhitespaceOnly removes whitespace without renaming identifiers.

@@ -19,6 +19,13 @@ Framework detects uniforms by struct TYPE name?
 Have platform-specific bindings/helpers?
 ├─ Yes: Use --keep-names or config file
 └─ No: Default is fine
+
+Need to debug minified shaders?
+├─ Yes: --source-map (external file) or --source-map-inline
+│   └─ Want self-contained map?
+│       ├─ Yes: Add --source-map-sources
+│       └─ No: Skip (smaller map file)
+└─ No: Skip source maps
 ```
 
 ## API Surfaces
@@ -35,7 +42,7 @@ miniray --config myconfig.json input.wgsl  # With config
 import { initialize, minify } from 'miniray';
 await initialize();  // Required once, auto-finds WASM in Node
 const result = minify(source, options);
-// result: { code, errors[], originalSize, minifiedSize }
+// result: { code, errors[], originalSize, minifiedSize, sourceMap? }
 ```
 
 ### Go
@@ -57,6 +64,8 @@ result := api.MinifyWithOptions(source, opts)   // Custom
 | `mangleExternalBindings` | false | Rename uniform/storage vars | Enable for max compression |
 | `preserveUniformStructTypes` | false | Keep struct types in uniforms | Enable for PNGine-like frameworks |
 | `keepNames` | [] | Preserve specific identifiers | Platform bindings, debugging |
+| `sourceMap` | false | Generate v3 source map | Debugging minified shaders |
+| `sourceMapSources` | false | Embed original source in map | Self-contained debugging |
 
 ## What Gets Preserved (Always)
 
@@ -147,6 +156,67 @@ const result = minify(source, {
   minifyIdentifiers: false,  // Keep readable names
   minifySyntax: true
 });
+```
+
+### Pattern 6: Source Maps for Debugging
+```bash
+# CLI: Generate external .map file
+miniray -o shader.min.wgsl --source-map shader.wgsl
+
+# CLI: Inline source map as data URI
+miniray --source-map-inline shader.wgsl > shader.min.wgsl
+
+# CLI: Include original source in map
+miniray -o out.wgsl --source-map --source-map-sources shader.wgsl
+```
+
+```javascript
+// JS/WASM: Generate source map
+const result = minify(source, {
+  sourceMap: true,
+  sourceMapSources: true  // Optional: embed source
+});
+console.log(result.sourceMap);  // JSON string
+// '{"version":3,"names":["originalName"],"mappings":"..."}'
+
+// Inline source map for browser DevTools
+const code = result.code + '\n//# sourceMappingURL=data:application/json;base64,' + btoa(result.sourceMap);
+```
+
+```go
+// Go API: Generate source map
+result := api.MinifyWithOptions(source, api.MinifyOptions{
+    SourceMap: true,
+    SourceMapOptions: api.SourceMapOptions{
+        File: "out.min.wgsl",
+        SourceName: "input.wgsl",
+        IncludeSource: true,
+    },
+})
+fmt.Println(result.SourceMap)     // JSON string
+fmt.Println(result.SourceMapDataURI)  // data:application/json;base64,...
+```
+
+### Pattern 7: WebGPU Error Translation
+WebGPU doesn't natively consume source maps, but you can translate `GPUCompilationMessage` positions back to original source:
+
+```javascript
+import { SourceMapConsumer } from 'source-map';
+
+const result = minify(source, { sourceMap: true, sourceMapSources: true });
+const module = device.createShaderModule({ code: result.code });
+const info = await module.getCompilationInfo();
+
+const consumer = await new SourceMapConsumer(JSON.parse(result.sourceMap));
+for (const msg of info.messages) {
+  if (msg.lineNum > 0) {
+    const pos = consumer.originalPositionFor({
+      line: msg.lineNum,
+      column: msg.linePos - 1  // source-map uses 0-based columns
+    });
+    console.log(`${pos.source}:${pos.line}:${pos.column + 1} - ${msg.message}`);
+  }
+}
 ```
 
 ## Gotchas & Edge Cases
