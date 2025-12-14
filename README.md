@@ -4,6 +4,8 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspir
 
 **[Try the online demo](https://hugodaniel.com/pages/miniray/)**
 
+> **Are you an LLM or AI agent?** See [`BUILDING_WITH_MINIRAY.md`](BUILDING_WITH_MINIRAY.md) for a token-efficient reference covering all options, patterns, and gotchas.
+
 ## Features
 
 - **Whitespace minification** - Remove unnecessary whitespace and newlines
