@@ -63,19 +63,20 @@ func main() {
 func run() error {
 	// Flags
 	var (
-		outputFile             string
-		configFile             string
-		noConfig               bool
-		minifyAll              bool
-		minifyWhitespace       bool
-		minifyIdentifiers      bool
-		minifySyntax           bool
-		noMangle               bool
-		mangleExternalBindings bool
-		noTreeShaking          bool
-		keepNames              string
-		showVersion            bool
-		showHelp               bool
+		outputFile                 string
+		configFile                 string
+		noConfig                   bool
+		minifyAll                  bool
+		minifyWhitespace           bool
+		minifyIdentifiers          bool
+		minifySyntax               bool
+		noMangle                   bool
+		mangleExternalBindings     bool
+		noTreeShaking              bool
+		preserveUniformStructTypes bool
+		keepNames                  string
+		showVersion                bool
+		showHelp                   bool
 	)
 
 	flag.StringVar(&outputFile, "o", "", "Write output to `file`")
@@ -88,6 +89,7 @@ func run() error {
 	flag.BoolVar(&noMangle, "no-mangle", false, "Don't rename identifiers")
 	flag.BoolVar(&mangleExternalBindings, "mangle-external-bindings", false, "Rename uniform/storage vars directly")
 	flag.BoolVar(&noTreeShaking, "no-tree-shaking", false, "Disable dead code elimination")
+	flag.BoolVar(&preserveUniformStructTypes, "preserve-uniform-struct-types", false, "Preserve struct types used in uniform/storage declarations")
 	flag.StringVar(&keepNames, "keep-names", "", "Comma-separated names to preserve")
 	flag.BoolVar(&showVersion, "version", false, "Print version and exit")
 	flag.BoolVar(&showHelp, "help", false, "Print help and exit")
@@ -201,6 +203,9 @@ func run() error {
 		if mangleExternalBindings {
 			cliOpts.MangleExternalBindings = &mangleExternalBindings
 		}
+		if preserveUniformStructTypes {
+			cliOpts.PreserveUniformStructTypes = &preserveUniformStructTypes
+		}
 
 		opts = cfg.Merge(cliOpts)
 
@@ -233,6 +238,9 @@ func run() error {
 
 		// Set tree shaking (on by default)
 		opts.TreeShaking = !noTreeShaking
+
+		// Set preserve uniform struct types
+		opts.PreserveUniformStructTypes = preserveUniformStructTypes
 
 		// Parse keep-names
 		if keepNames != "" {
