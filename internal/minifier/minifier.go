@@ -35,6 +35,12 @@ type Options struct {
 	// Removes declarations that are not reachable from entry points.
 	TreeShaking bool
 
+	// PreserveUniformStructTypes automatically preserves struct type names
+	// that are used in var<uniform> or var<storage> declarations.
+	// This is useful for frameworks like PNGine that detect builtin uniforms
+	// by struct type name.
+	PreserveUniformStructTypes bool
+
 	// KeepNames prevents specific names from being renamed
 	KeepNames []string
 }
@@ -218,6 +224,45 @@ func (m *Minifier) markAPIFacingSymbols(module *ast.Module) {
 	}
 
 	// TODO: Mark struct members with @location, @builtin, @group, @binding
+
+	// Preserve struct types used in uniform/storage declarations
+	if m.options.PreserveUniformStructTypes {
+		uniformStructRefs := m.collectUniformStructTypes(module)
+		for ref := range uniformStructRefs {
+			if ref.IsValid() && int(ref.InnerIndex) < len(module.Symbols) {
+				module.Symbols[ref.InnerIndex].Flags |= ast.MustNotBeRenamed
+			}
+		}
+	}
+}
+
+// collectUniformStructTypes finds all struct types used directly in
+// var<uniform> or var<storage> declarations.
+func (m *Minifier) collectUniformStructTypes(module *ast.Module) map[ast.Ref]bool {
+	result := make(map[ast.Ref]bool)
+
+	for _, decl := range module.Declarations {
+		varDecl, ok := decl.(*ast.VarDecl)
+		if !ok {
+			continue
+		}
+
+		// Check if this variable has IsExternalBinding flag
+		if !varDecl.Name.IsValid() {
+			continue
+		}
+		sym := module.Symbols[varDecl.Name.InnerIndex]
+		if !sym.Flags.Has(ast.IsExternalBinding) {
+			continue
+		}
+
+		// Extract the type reference if it's a user-defined type
+		if identType, ok := varDecl.Type.(*ast.IdentType); ok && identType.Ref.IsValid() {
+			result[identType.Ref] = true
+		}
+	}
+
+	return result
 }
 
 // computeSymbolUsage walks the AST and counts symbol references.

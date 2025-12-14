@@ -1827,6 +1827,280 @@ fn test2() -> vec2f {
 	}
 }
 
+// ============================================================================
+// PreserveUniformStructTypes Tests (PNGine Integration)
+// ============================================================================
+
+// TestPreserveUniformStructTypes_Basic tests that struct types used in uniform
+// declarations are preserved when PreserveUniformStructTypes is enabled.
+func TestPreserveUniformStructTypes_Basic(t *testing.T) {
+	source := `
+struct MyUniforms {
+    time: f32,
+    scale: f32,
+}
+
+@group(0) @binding(0) var<uniform> u: MyUniforms;
+
+fn getValue() -> f32 {
+    return u.time * u.scale;
+}
+`
+
+	opts := minifier.Options{
+		MinifyWhitespace:           true,
+		MinifyIdentifiers:          true,
+		MinifySyntax:               true,
+		PreserveUniformStructTypes: true,
+	}
+
+	m := minifier.New(opts)
+	result := m.Minify(source)
+
+	// Struct type 'MyUniforms' should be preserved
+	if !strings.Contains(result.Code, "MyUniforms") {
+		t.Errorf("Expected struct type 'MyUniforms' to be preserved with PreserveUniformStructTypes=true:\n%s", result.Code)
+	}
+
+	// Variable name 'u' should be preserved (external binding)
+	if !strings.Contains(result.Code, "var<uniform> u") {
+		t.Errorf("Expected uniform variable 'u' to be preserved:\n%s", result.Code)
+	}
+
+	// Function 'getValue' should be renamed (not an entry point)
+	if strings.Contains(result.Code, "getValue") {
+		t.Errorf("Expected function 'getValue' to be renamed:\n%s", result.Code)
+	}
+}
+
+// TestPreserveUniformStructTypes_MultipleStructs tests preservation of multiple
+// struct types used in different uniform/storage declarations.
+func TestPreserveUniformStructTypes_MultipleStructs(t *testing.T) {
+	source := `
+struct UniformA {
+    x: f32,
+}
+
+struct StorageB {
+    y: f32,
+}
+
+struct NotInBinding {
+    z: f32,
+}
+
+@group(0) @binding(0) var<uniform> a: UniformA;
+@group(0) @binding(1) var<storage> b: StorageB;
+
+fn process() -> f32 {
+    var local: NotInBinding;
+    local.z = 1.0;
+    return a.x + b.y + local.z;
+}
+`
+
+	opts := minifier.Options{
+		MinifyWhitespace:           true,
+		MinifyIdentifiers:          true,
+		PreserveUniformStructTypes: true,
+	}
+
+	m := minifier.New(opts)
+	result := m.Minify(source)
+
+	// UniformA and StorageB should be preserved (used in bindings)
+	if !strings.Contains(result.Code, "UniformA") {
+		t.Errorf("Expected 'UniformA' to be preserved:\n%s", result.Code)
+	}
+	if !strings.Contains(result.Code, "StorageB") {
+		t.Errorf("Expected 'StorageB' to be preserved:\n%s", result.Code)
+	}
+
+	// NotInBinding struct should be renamed (used but not in any binding)
+	if strings.Contains(result.Code, "NotInBinding") {
+		t.Errorf("Expected 'NotInBinding' to be renamed:\n%s", result.Code)
+	}
+}
+
+// TestPreserveUniformStructTypes_NestedType tests that only the direct type
+// is preserved, not nested types within the struct.
+func TestPreserveUniformStructTypes_NestedType(t *testing.T) {
+	source := `
+struct Inner {
+    v: f32,
+}
+
+struct Outer {
+    inner: Inner,
+}
+
+@group(0) @binding(0) var<uniform> u: Outer;
+
+fn getValue() -> f32 {
+    return u.inner.v;
+}
+`
+
+	opts := minifier.Options{
+		MinifyWhitespace:           true,
+		MinifyIdentifiers:          true,
+		PreserveUniformStructTypes: true,
+	}
+
+	m := minifier.New(opts)
+	result := m.Minify(source)
+
+	// Outer should be preserved (direct type in uniform)
+	if !strings.Contains(result.Code, "Outer") {
+		t.Errorf("Expected 'Outer' to be preserved:\n%s", result.Code)
+	}
+
+	// Inner may be renamed (it's a nested type, not directly in the binding)
+	// This is the expected behavior - only direct types are preserved
+}
+
+// TestPreserveUniformStructTypes_Disabled tests that struct types are renamed
+// when PreserveUniformStructTypes is false (default).
+func TestPreserveUniformStructTypes_Disabled(t *testing.T) {
+	source := `
+struct MyUniforms {
+    time: f32,
+}
+
+@group(0) @binding(0) var<uniform> u: MyUniforms;
+
+fn getValue() -> f32 {
+    return u.time;
+}
+`
+
+	opts := minifier.Options{
+		MinifyWhitespace:           true,
+		MinifyIdentifiers:          true,
+		PreserveUniformStructTypes: false, // Default
+	}
+
+	m := minifier.New(opts)
+	result := m.Minify(source)
+
+	// Struct type 'MyUniforms' should be renamed when option is disabled
+	if strings.Contains(result.Code, "MyUniforms") {
+		t.Errorf("Expected 'MyUniforms' to be renamed when PreserveUniformStructTypes=false:\n%s", result.Code)
+	}
+}
+
+// TestPreserveUniformStructTypes_WithKeepNames tests that both options work together.
+func TestPreserveUniformStructTypes_WithKeepNames(t *testing.T) {
+	source := `
+struct AutoPreserved {
+    a: f32,
+}
+
+struct ManuallyKept {
+    b: f32,
+}
+
+struct ShouldRename {
+    c: f32,
+}
+
+@group(0) @binding(0) var<uniform> u: AutoPreserved;
+
+fn helper() -> f32 {
+    var m: ManuallyKept;
+    var s: ShouldRename;
+    return u.a + m.b + s.c;
+}
+`
+
+	opts := minifier.Options{
+		MinifyWhitespace:           true,
+		MinifyIdentifiers:          true,
+		PreserveUniformStructTypes: true,
+		KeepNames:                  []string{"ManuallyKept"},
+	}
+
+	m := minifier.New(opts)
+	result := m.Minify(source)
+
+	// AutoPreserved: preserved via PreserveUniformStructTypes
+	if !strings.Contains(result.Code, "AutoPreserved") {
+		t.Errorf("Expected 'AutoPreserved' to be preserved:\n%s", result.Code)
+	}
+
+	// ManuallyKept: preserved via keepNames
+	if !strings.Contains(result.Code, "ManuallyKept") {
+		t.Errorf("Expected 'ManuallyKept' to be preserved via keepNames:\n%s", result.Code)
+	}
+
+	// ShouldRename: not in keepNames, not in uniform binding
+	if strings.Contains(result.Code, "ShouldRename") {
+		t.Errorf("Expected 'ShouldRename' to be renamed:\n%s", result.Code)
+	}
+}
+
+// TestPreserveUniformStructTypes_PngineBuiltins tests the specific PNGine use case.
+func TestPreserveUniformStructTypes_PngineBuiltins(t *testing.T) {
+	source := `
+struct PngineInputs {
+    time: f32,
+    canvasW: f32,
+    canvasH: f32,
+}
+
+@group(0) @binding(0) var<uniform> pngine: PngineInputs;
+
+fn computeUV(pos: vec2f) -> vec2f {
+    return pos / vec2f(pngine.canvasW, pngine.canvasH);
+}
+
+@fragment
+fn main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+    let uv = computeUV(pos.xy);
+    let t = pngine.time;
+    return vec4f(uv, t, 1.0);
+}
+`
+
+	opts := minifier.Options{
+		MinifyWhitespace:           true,
+		MinifyIdentifiers:          true,
+		MinifySyntax:               true,
+		PreserveUniformStructTypes: true,
+	}
+
+	m := minifier.New(opts)
+	result := m.Minify(source)
+
+	// PngineInputs should be preserved (this is what PNGine needs!)
+	if !strings.Contains(result.Code, "PngineInputs") {
+		t.Errorf("Expected 'PngineInputs' to be preserved for PNGine compatibility:\n%s", result.Code)
+	}
+
+	// pngine variable should be preserved (external binding)
+	if !strings.Contains(result.Code, "pngine") {
+		t.Errorf("Expected 'pngine' variable to be preserved:\n%s", result.Code)
+	}
+
+	// Entry point 'main' should be preserved
+	if !strings.Contains(result.Code, "fn main") {
+		t.Errorf("Expected entry point 'main' to be preserved:\n%s", result.Code)
+	}
+
+	// Helper function 'computeUV' should be renamed
+	if strings.Contains(result.Code, "computeUV") {
+		t.Errorf("Expected helper function 'computeUV' to be renamed:\n%s", result.Code)
+	}
+
+	// Field names should be preserved (accessed via `.`)
+	if !strings.Contains(result.Code, ".time") {
+		t.Errorf("Expected field name '.time' to be preserved:\n%s", result.Code)
+	}
+	if !strings.Contains(result.Code, ".canvasW") {
+		t.Errorf("Expected field name '.canvasW' to be preserved:\n%s", result.Code)
+	}
+}
+
 // TestShadowingRealisticSDF tests a realistic SDF rendering pattern.
 func TestShadowingRealisticSDF(t *testing.T) {
 	source := `
