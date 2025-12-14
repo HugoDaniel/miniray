@@ -34,6 +34,10 @@ type Config struct {
 	// TreeShaking enables dead code elimination (default true)
 	TreeShaking *bool `json:"treeShaking,omitempty"`
 
+	// PreserveUniformStructTypes automatically preserves struct type names
+	// used in var<uniform> or var<storage> declarations
+	PreserveUniformStructTypes *bool `json:"preserveUniformStructTypes,omitempty"`
+
 	// KeepNames lists identifier names that should not be renamed
 	KeepNames []string `json:"keepNames,omitempty"`
 }
@@ -105,6 +109,9 @@ func (c *Config) ToOptions() minifier.Options {
 	if c.TreeShaking != nil {
 		opts.TreeShaking = *c.TreeShaking
 	}
+	if c.PreserveUniformStructTypes != nil {
+		opts.PreserveUniformStructTypes = *c.PreserveUniformStructTypes
+	}
 	if len(c.KeepNames) > 0 {
 		opts.KeepNames = c.KeepNames
 	}
@@ -116,13 +123,14 @@ func (c *Config) ToOptions() minifier.Options {
 // CLI options take precedence over config file options.
 type MergeOptions struct {
 	// CLI flags (nil means not specified on CLI)
-	MinifyWhitespace       *bool
-	MinifyIdentifiers      *bool
-	MinifySyntax           *bool
-	MangleExternalBindings *bool
-	NoMangle               bool
-	NoTreeShaking          bool
-	KeepNames              []string
+	MinifyWhitespace           *bool
+	MinifyIdentifiers          *bool
+	MinifySyntax               *bool
+	MangleExternalBindings     *bool
+	PreserveUniformStructTypes *bool
+	NoMangle                   bool
+	NoTreeShaking              bool
+	KeepNames                  []string
 }
 
 // Merge merges CLI options with config file options.
@@ -148,6 +156,9 @@ func (c *Config) Merge(cli MergeOptions) minifier.Options {
 	}
 	if cli.NoTreeShaking {
 		opts.TreeShaking = false
+	}
+	if cli.PreserveUniformStructTypes != nil {
+		opts.PreserveUniformStructTypes = *cli.PreserveUniformStructTypes
 	}
 	if len(cli.KeepNames) > 0 {
 		// Append CLI keep names to config keep names
