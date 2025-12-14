@@ -40,8 +40,15 @@ export async function initialize(options) {
   const wasmModule = options.wasmModule;
 
   // Default to miniray.wasm in the package directory
+  // Use require.resolve to find files within the package, which works
+  // regardless of bundling or working directory
   if (!wasmURL && !wasmModule) {
-    wasmURL = path.join(__dirname, '..', 'miniray.wasm');
+    try {
+      wasmURL = require.resolve('miniray/miniray.wasm');
+    } catch {
+      // Fallback to relative path for local development
+      wasmURL = path.join(__dirname, '..', 'miniray.wasm');
+    }
   }
 
   _initPromise = _doInitialize(wasmURL, wasmModule);
@@ -57,7 +64,16 @@ export async function initialize(options) {
 
 async function _doInitialize(wasmURL, wasmModule) {
   // Load wasm_exec.js - this defines Go globally
-  const wasmExecPath = path.join(__dirname, '..', 'wasm_exec.js');
+  // Use require.resolve to find files within the package, which works
+  // regardless of bundling or working directory
+  let wasmExecPath;
+  try {
+    wasmExecPath = require.resolve('miniray/wasm_exec.js');
+  } catch {
+    // Fallback to relative path for local development
+    wasmExecPath = path.join(__dirname, '..', 'wasm_exec.js');
+  }
+
   if (!fs.existsSync(wasmExecPath)) {
     throw new Error(`wasm_exec.js not found at ${wasmExecPath}`);
   }

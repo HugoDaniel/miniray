@@ -1012,6 +1012,10 @@ func (p *Parser) parseParameters() []ast.Parameter {
 		if !p.match(lexer.TokComma) {
 			break
 		}
+		// Handle trailing comma: if next token is ), stop parsing parameters
+		if p.current().Kind == lexer.TokRParen {
+			break
+		}
 	}
 
 	return params

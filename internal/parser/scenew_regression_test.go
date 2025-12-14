@@ -429,3 +429,78 @@ fn sampleVideo(uv: vec2f) -> vec4f {
 		})
 	}
 }
+
+// ----------------------------------------------------------------------------
+// Trailing Comma in Function Parameters
+// ----------------------------------------------------------------------------
+
+func TestTrailingCommaInFunctionParameters(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "single parameter with trailing comma",
+			input: `fn test(x: f32,) -> f32 {
+  return x;
+}`,
+		},
+		{
+			name: "multiple parameters with trailing comma",
+			input: `fn test(x: f32, y: f32,) -> f32 {
+  return x + y;
+}`,
+		},
+		{
+			name: "vertex shader with trailing comma",
+			input: `@vertex
+fn vs_main(
+  @builtin(vertex_index) vertexIndex: u32,
+  @location(0) position: vec4f,
+) -> @builtin(position) vec4f {
+  return position;
+}`,
+		},
+		{
+			name: "fragment shader with trailing comma",
+			input: `@fragment
+fn fs_main(
+  @location(0) uv: vec2f,
+) -> @location(0) vec4f {
+  return vec4f(uv, 0.0, 1.0);
+}`,
+		},
+		{
+			name: "compute shader with trailing comma",
+			input: `@compute @workgroup_size(64)
+fn main(
+  @builtin(global_invocation_id) id: vec3u,
+) {
+  // body
+}`,
+		},
+		{
+			name: "helper function with trailing comma",
+			input: `fn lerp(
+  a: f32,
+  b: f32,
+  t: f32,
+) -> f32 {
+  return a + (b - a) * t;
+}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := New(tt.input)
+			_, errs := p.Parse()
+			if len(errs) > 0 {
+				t.Errorf("parse errors:")
+				for _, e := range errs {
+					t.Errorf("  %s", e.Message)
+				}
+			}
+		})
+	}
+}
