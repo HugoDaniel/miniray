@@ -15,12 +15,13 @@ var version = "0.1.0"
 
 // jsOptions mirrors the JavaScript options object.
 type jsOptions struct {
-	MinifyWhitespace       *bool    `json:"minifyWhitespace"`
-	MinifyIdentifiers      *bool    `json:"minifyIdentifiers"`
-	MinifySyntax           *bool    `json:"minifySyntax"`
-	MangleExternalBindings *bool    `json:"mangleExternalBindings"`
-	TreeShaking            *bool    `json:"treeShaking"`
-	KeepNames              []string `json:"keepNames"`
+	MinifyWhitespace           *bool    `json:"minifyWhitespace"`
+	MinifyIdentifiers          *bool    `json:"minifyIdentifiers"`
+	MinifySyntax               *bool    `json:"minifySyntax"`
+	MangleExternalBindings     *bool    `json:"mangleExternalBindings"`
+	TreeShaking                *bool    `json:"treeShaking"`
+	PreserveUniformStructTypes *bool    `json:"preserveUniformStructTypes"`
+	KeepNames                  []string `json:"keepNames"`
 }
 
 func main() {
@@ -68,6 +69,9 @@ func minifyJS(this js.Value, args []js.Value) interface{} {
 		}
 		if jsOpts.TreeShaking != nil {
 			opts.TreeShaking = *jsOpts.TreeShaking
+		}
+		if jsOpts.PreserveUniformStructTypes != nil {
+			opts.PreserveUniformStructTypes = *jsOpts.PreserveUniformStructTypes
 		}
 		if jsOpts.KeepNames != nil {
 			opts.KeepNames = jsOpts.KeepNames
@@ -127,6 +131,10 @@ func parseOptions(jsVal js.Value) jsOptions {
 	if v := jsVal.Get("treeShaking"); !v.IsUndefined() {
 		b := v.Bool()
 		opts.TreeShaking = &b
+	}
+	if v := jsVal.Get("preserveUniformStructTypes"); !v.IsUndefined() {
+		b := v.Bool()
+		opts.PreserveUniformStructTypes = &b
 	}
 	if v := jsVal.Get("keepNames"); !v.IsUndefined() && v.Type() == js.TypeObject {
 		length := v.Get("length").Int()
