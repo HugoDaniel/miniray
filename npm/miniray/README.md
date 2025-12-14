@@ -75,11 +75,13 @@ Minify WGSL source code.
 
 ```typescript
 interface MinifyOptions {
-  minifyWhitespace?: boolean;        // Remove whitespace (default: true)
-  minifyIdentifiers?: boolean;       // Rename identifiers (default: true)
-  minifySyntax?: boolean;            // Optimize syntax (default: true)
-  mangleExternalBindings?: boolean;  // Mangle uniform/storage names (default: false)
-  keepNames?: string[];              // Names to preserve from renaming
+  minifyWhitespace?: boolean;           // Remove whitespace (default: true)
+  minifyIdentifiers?: boolean;          // Rename identifiers (default: true)
+  minifySyntax?: boolean;               // Optimize syntax (default: true)
+  mangleExternalBindings?: boolean;     // Mangle uniform/storage names (default: false)
+  treeShaking?: boolean;                // Remove unused declarations (default: true)
+  preserveUniformStructTypes?: boolean; // Keep struct types used in uniforms (default: false)
+  keepNames?: string[];                 // Names to preserve from renaming
 }
 
 interface MinifyResult {
@@ -132,6 +134,40 @@ fn getValue() -> f32 { return uniforms * 2.0; }
 // With mangleExternalBindings: true
 // Output: "@group(0) @binding(0) var<uniform> a:f32;fn b()->f32{return a*2.0;}"
 ```
+
+### `treeShaking`
+
+Enable dead code elimination to remove unused declarations (default: `true`):
+
+```javascript
+minify(source, {
+  treeShaking: true,  // Remove unreachable code
+});
+```
+
+### `preserveUniformStructTypes`
+
+Automatically preserve struct type names that are used in `var<uniform>` or `var<storage>` declarations (default: `false`):
+
+```javascript
+// Input
+const shader = `
+struct MyUniforms { time: f32 }
+@group(0) @binding(0) var<uniform> u: MyUniforms;
+@fragment fn main() -> @location(0) vec4f { return vec4f(u.time); }
+`;
+
+// With preserveUniformStructTypes: false (default)
+// struct MyUniforms -> struct a
+
+// With preserveUniformStructTypes: true
+// struct MyUniforms preserved
+minify(source, {
+  preserveUniformStructTypes: true,
+});
+```
+
+This is particularly useful for frameworks like PNGine that detect builtin uniforms by struct type name.
 
 ### `keepNames`
 

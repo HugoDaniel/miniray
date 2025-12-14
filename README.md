@@ -82,6 +82,8 @@ miniray --config myconfig.json shader.wgsl
 | `--minify-syntax` | Apply syntax optimizations |
 | `--no-mangle` | Don't rename identifiers |
 | `--mangle-external-bindings` | Rename uniform/storage vars directly |
+| `--no-tree-shaking` | Disable dead code elimination |
+| `--preserve-uniform-struct-types` | Preserve struct types used in uniforms |
 | `--keep-names <names>` | Comma-separated names to preserve |
 | `--version` | Print version and exit |
 | `--help` | Print help and exit |
@@ -100,6 +102,8 @@ Example `miniray.json`:
     "minifyIdentifiers": true,
     "minifySyntax": true,
     "mangleExternalBindings": false,
+    "treeShaking": true,
+    "preserveUniformStructTypes": false,
     "keepNames": ["myUniform", "myBuffer"]
 }
 ```
@@ -130,6 +134,42 @@ Or copy `configs/compute.toys.json` to your project directory as `miniray.json` 
 
 **Size reduction:** ~55% on typical shaders
 
+#### PNGine
+
+[PNGine](https://github.com/HugoDaniel/pngine) is a WebGPU DSL that embeds shader code in PNG files. It detects builtin uniforms by **struct type name**, so these must be preserved:
+
+```bash
+miniray --config configs/pngine.json shader.wgsl
+```
+
+**Key feature:** Uses `preserveUniformStructTypes: true` to automatically preserve any struct type used in `var<uniform>` or `var<storage>` declarations.
+
+**Preserved names:**
+- Struct types: `PngineInputs`, `TimeInputs`, `CanvasInputs`, `SceneTimeInputs`, `GlobalTimeInputs`
+- Uniform variable names (preserved by default)
+- Struct field names (preserved by default - accessed via `.` operator)
+- Entry point function names
+
+**What gets renamed:**
+- Helper functions
+- Local variables and parameters
+- Struct types not used in uniform/storage declarations
+
+**Example:**
+```wgsl
+// Input
+struct PngineInputs { time: f32, canvasW: f32 }
+@group(0) @binding(0) var<uniform> inputs: PngineInputs;
+fn helper(t: f32) -> f32 { return t * 2.0; }
+@vertex fn vs() -> @builtin(position) vec4f {
+  let adjusted = helper(inputs.time);
+  return vec4f(adjusted);
+}
+
+// Output
+struct PngineInputs{time:f32,canvasW:f32}@group(0) @binding(0) var<uniform> inputs:PngineInputs;fn a(b:f32)->f32{return b*2.;}@vertex fn vs()->@builtin(position) vec4f{let c=a(inputs.time);return vec4f(c);}
+```
+
 ### Go API
 
 ```go
@@ -140,11 +180,13 @@ result := api.Minify(source)
 
 // Custom options
 result := api.MinifyWithOptions(source, api.MinifyOptions{
-    MinifyWhitespace:       true,
-    MinifyIdentifiers:      true,
-    MinifySyntax:           true,
-    MangleExternalBindings: false, // keep uniform/storage names for reflection
-    KeepNames:              []string{"myHelper"},
+    MinifyWhitespace:           true,
+    MinifyIdentifiers:          true,
+    MinifySyntax:               true,
+    MangleExternalBindings:     false, // keep uniform/storage names for reflection
+    TreeShaking:                true,  // remove unused declarations
+    PreserveUniformStructTypes: true,  // keep struct types used in uniforms
+    KeepNames:                  []string{"myHelper"},
 })
 
 // Safe whitespace-only

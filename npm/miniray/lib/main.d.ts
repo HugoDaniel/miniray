@@ -30,6 +30,20 @@ export interface MinifyOptions {
   mangleExternalBindings?: boolean;
 
   /**
+   * Enable dead code elimination to remove unused declarations.
+   * @default true
+   */
+  treeShaking?: boolean;
+
+  /**
+   * Automatically preserve struct type names that are used in
+   * var<uniform> or var<storage> declarations.
+   * Useful for frameworks that detect uniforms by struct type name.
+   * @default false
+   */
+  preserveUniformStructTypes?: boolean;
+
+  /**
    * Identifier names that should not be renamed.
    */
   keepNames?: string[];
