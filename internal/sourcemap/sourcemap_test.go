@@ -366,6 +366,108 @@ func TestDecodeMappingsMultipleLines(t *testing.T) {
 }
 
 // ============================================================================
+// Line Coverage Workaround Tests
+// ============================================================================
+
+func TestLineCoverageWorkaround(t *testing.T) {
+	// Generator should add mappings at column 0 for lines without mappings
+	// This is a workaround for Mozilla's source-map library bug
+	g := NewGenerator("line1\nline2\nline3\n")
+	g.SetSourceName("test.wgsl")
+
+	// Only add mapping on line 0 and line 2, skip line 1
+	g.AddMapping(0, 5, 0, "")  // line 0, col 5
+	g.AddMapping(2, 5, 12, "") // line 2, col 5
+
+	sm := g.Generate()
+	mappings, _ := DecodeMappings(sm.Mappings)
+
+	// Should have mappings for lines 0, 1, and 2
+	// Line 1 should have a mapping at column 0 (coverage workaround)
+	hasLine1AtCol0 := false
+	for _, m := range mappings {
+		if m.GenLine == 1 && m.GenCol == 0 {
+			hasLine1AtCol0 = true
+		}
+	}
+	if !hasLine1AtCol0 {
+		t.Error("Expected line coverage mapping at line 1, column 0")
+		t.Logf("Mappings: %v", mappings)
+	}
+}
+
+func TestLineCoverageOnlyWhenNeeded(t *testing.T) {
+	// Don't add coverage mapping if line already has a mapping at column 0
+	g := NewGenerator("line1\nline2\n")
+	g.SetSourceName("test.wgsl")
+
+	g.AddMapping(0, 0, 0, "")
+	g.AddMapping(1, 0, 6, "") // Line 1 already has mapping at col 0
+
+	sm := g.Generate()
+	mappings, _ := DecodeMappings(sm.Mappings)
+
+	// Count mappings on line 1
+	line1Count := 0
+	for _, m := range mappings {
+		if m.GenLine == 1 {
+			line1Count++
+		}
+	}
+	if line1Count != 1 {
+		t.Errorf("Expected 1 mapping on line 1, got %d", line1Count)
+	}
+}
+
+func TestLineCoverageMultipleGaps(t *testing.T) {
+	// Handle multiple consecutive lines without mappings
+	g := NewGenerator("a\nb\nc\nd\ne\n")
+	g.SetSourceName("test.wgsl")
+
+	g.AddMapping(0, 0, 0, "")  // line 0
+	g.AddMapping(4, 0, 8, "")  // line 4 (skip 1, 2, 3)
+
+	sm := g.Generate()
+	mappings, _ := DecodeMappings(sm.Mappings)
+
+	// Should have coverage mappings for lines 1, 2, 3
+	coveredLines := make(map[int]bool)
+	for _, m := range mappings {
+		coveredLines[m.GenLine] = true
+	}
+
+	for line := 0; line <= 4; line++ {
+		if !coveredLines[line] {
+			t.Errorf("Line %d should have a mapping", line)
+		}
+	}
+}
+
+func TestLineCoverageDisabled(t *testing.T) {
+	// When disabled, should not add coverage mappings
+	g := NewGenerator("line1\nline2\nline3\n")
+	g.SetSourceName("test.wgsl")
+	g.SetCoverLinesWithoutMappings(false) // Disable
+
+	g.AddMapping(0, 5, 0, "")
+	g.AddMapping(2, 5, 12, "")
+
+	sm := g.Generate()
+	mappings, _ := DecodeMappings(sm.Mappings)
+
+	// Line 1 should NOT have a mapping
+	hasLine1 := false
+	for _, m := range mappings {
+		if m.GenLine == 1 {
+			hasLine1 = true
+		}
+	}
+	if hasLine1 {
+		t.Error("Line coverage is disabled, should not have mapping on line 1")
+	}
+}
+
+// ============================================================================
 // Benchmark Tests
 // ============================================================================
 

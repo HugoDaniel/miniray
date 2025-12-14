@@ -233,7 +233,62 @@ func TestVLQDecodeSequence(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// VLQ Fast Path Tests
+// ============================================================================
+
+func TestVLQFastPathSmallPositive(t *testing.T) {
+	// Values 0-15 should produce single-digit output (after << 1, fits in 5 bits)
+	for v := 0; v <= 15; v++ {
+		result := EncodeVLQ(v)
+		if len(result) != 1 {
+			t.Errorf("EncodeVLQ(%d) = %q (len %d), expected single char", v, result, len(result))
+		}
+	}
+}
+
+func TestVLQFastPathSmallNegative(t *testing.T) {
+	// Values -1 to -15 should produce single-digit output
+	for v := -1; v >= -15; v-- {
+		result := EncodeVLQ(v)
+		if len(result) != 1 {
+			t.Errorf("EncodeVLQ(%d) = %q (len %d), expected single char", v, result, len(result))
+		}
+	}
+}
+
+func TestVLQFastPathBoundary(t *testing.T) {
+	// Test boundary: 15 is last single-digit positive, 16 needs two digits
+	if len(EncodeVLQ(15)) != 1 {
+		t.Error("EncodeVLQ(15) should be single digit")
+	}
+	if len(EncodeVLQ(16)) != 2 {
+		t.Error("EncodeVLQ(16) should be two digits")
+	}
+	// Same for negative
+	if len(EncodeVLQ(-15)) != 1 {
+		t.Error("EncodeVLQ(-15) should be single digit")
+	}
+	if len(EncodeVLQ(-16)) != 2 {
+		t.Error("EncodeVLQ(-16) should be two digits")
+	}
+}
+
 // Benchmark tests
+func BenchmarkVLQEncodeSmall(b *testing.B) {
+	// Benchmark small values (should benefit from fast path)
+	for i := 0; i < b.N; i++ {
+		EncodeVLQ(5)
+	}
+}
+
+func BenchmarkVLQEncodeLarge(b *testing.B) {
+	// Benchmark large values (uses loop)
+	for i := 0; i < b.N; i++ {
+		EncodeVLQ(1000)
+	}
+}
+
 func BenchmarkVLQEncode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		EncodeVLQ(1000)

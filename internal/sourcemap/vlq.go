@@ -38,8 +38,6 @@ const (
 // EncodeVLQ encodes a signed integer as a VLQ base64 string.
 // The encoding follows the source map v3 specification.
 func EncodeVLQ(value int) string {
-	var buf strings.Builder
-
 	// Convert to VLQ signed representation:
 	// - Positive numbers: value << 1
 	// - Negative numbers: ((-value) << 1) | 1
@@ -50,7 +48,14 @@ func EncodeVLQ(value int) string {
 		vlq = uint32(value << 1)
 	}
 
-	// Encode as base64 VLQ
+	// Fast path: small values fit in one digit (0-31)
+	// This avoids strings.Builder allocation for common case
+	if vlq < vlqBase {
+		return string(base64Alphabet[vlq])
+	}
+
+	// Multi-digit encoding for larger values
+	var buf strings.Builder
 	for {
 		digit := vlq & vlqBaseMask
 		vlq >>= vlqBaseShift

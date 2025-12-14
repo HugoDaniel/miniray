@@ -42,16 +42,23 @@ type Generator struct {
 
 	// Current generated line for tracking
 	currentGenLine int
+
+	// coverLinesWithoutMappings adds a mapping at column 0 for lines that
+	// would otherwise have no mappings. This is a workaround for a bug in
+	// Mozilla's source-map library that returns null for lines without a
+	// mapping at column 0.
+	coverLinesWithoutMappings bool
 }
 
 // NewGenerator creates a new source map generator for the given original source.
 func NewGenerator(source string) *Generator {
 	return &Generator{
-		source:    source,
-		lineIndex: NewLineIndex(source),
-		mappings:  make([]Mapping, 0),
-		names:     make(map[string]int),
-		namesList: make([]string, 0),
+		source:                    source,
+		lineIndex:                 NewLineIndex(source),
+		mappings:                  make([]Mapping, 0),
+		names:                     make(map[string]int),
+		namesList:                 make([]string, 0),
+		coverLinesWithoutMappings: true, // Enable by default for Mozilla compatibility
 	}
 }
 
@@ -68,6 +75,14 @@ func (g *Generator) SetSourceName(name string) {
 // IncludeSourceContent sets whether to include original source in sourcesContent.
 func (g *Generator) IncludeSourceContent(include bool) {
 	g.includeSource = include
+}
+
+// SetCoverLinesWithoutMappings enables or disables the line coverage workaround.
+// When enabled (default), a mapping at column 0 is added for any line that would
+// otherwise have no mappings. This works around a bug in Mozilla's source-map
+// library that returns null for lines without a column 0 mapping.
+func (g *Generator) SetCoverLinesWithoutMappings(cover bool) {
+	g.coverLinesWithoutMappings = cover
 }
 
 // AddMapping adds a mapping from generated position to source position.
@@ -140,13 +155,33 @@ func (g *Generator) encodeMappings() string {
 	currentLine := 0
 	firstOnLine := true
 
-	for _, m := range g.mappings {
+	// Track last mapping for line coverage workaround
+	var lastMapping *Mapping
+
+	for i := range g.mappings {
+		m := &g.mappings[i]
+
 		// Emit semicolons for skipped lines
 		for currentLine < m.GenLine {
 			buf.WriteByte(';')
 			currentLine++
 			prevGenCol = 0 // Reset column on new line
 			firstOnLine = true
+
+			// Line coverage workaround: if we're about to skip this line too,
+			// add a mapping at column 0 so Mozilla's source-map library works
+			if currentLine < m.GenLine && g.coverLinesWithoutMappings && lastMapping != nil {
+				// Emit coverage mapping at column 0, pointing to last known source location
+				buf.WriteString(EncodeVLQ(0 - prevGenCol))
+				prevGenCol = 0
+				buf.WriteString(EncodeVLQ(lastMapping.SrcIndex - prevSrcIndex))
+				prevSrcIndex = lastMapping.SrcIndex
+				buf.WriteString(EncodeVLQ(lastMapping.SrcLine - prevSrcLine))
+				prevSrcLine = lastMapping.SrcLine
+				buf.WriteString(EncodeVLQ(lastMapping.SrcCol - prevSrcCol))
+				prevSrcCol = lastMapping.SrcCol
+				firstOnLine = false
+			}
 		}
 
 		// Emit comma if not first on line
@@ -177,6 +212,8 @@ func (g *Generator) encodeMappings() string {
 			buf.WriteString(EncodeVLQ(m.NameIndex - prevNameIndex))
 			prevNameIndex = m.NameIndex
 		}
+
+		lastMapping = m
 	}
 
 	return buf.String()
