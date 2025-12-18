@@ -71,6 +71,11 @@ miniray --mangle-external-bindings shader.wgsl
 
 # Use a specific config file
 miniray --config myconfig.json shader.wgsl
+
+# Reflect shader (extract bindings, structs, entry points as JSON)
+miniray reflect shader.wgsl
+miniray reflect shader.wgsl -o info.json
+miniray reflect --compact shader.wgsl | jq '.bindings'
 ```
 
 ### Options
@@ -94,6 +99,25 @@ miniray --config myconfig.json shader.wgsl
 | `--source-map-sources` | Include original source in source map |
 | `--version` | Print version and exit |
 | `--help` | Print help and exit |
+
+### Reflect Subcommand
+
+Extract binding information, struct memory layouts, and entry points as JSON:
+
+```bash
+miniray reflect [options] <input.wgsl>
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o <file>` | Write JSON output to file (default: stdout) |
+| `--compact` | Output compact JSON (default: pretty-printed) |
+
+Output includes:
+- `bindings`: Array of `@group/@binding` variables with memory layouts
+- `structs`: Map of struct names to their layouts (size, alignment, fields)
+- `entryPoints`: Array of entry point functions with stage and workgroup size
+- `errors`: Parse errors if any
 
 ### Config File
 

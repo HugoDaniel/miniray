@@ -35,6 +35,8 @@ Need to debug minified shaders?
 miniray input.wgsl -o output.wgsl          # File to file
 cat input.wgsl | miniray > output.wgsl     # Pipe
 miniray --config myconfig.json input.wgsl  # With config
+miniray reflect input.wgsl                 # Reflect to JSON
+miniray reflect --compact input.wgsl       # Compact JSON
 ```
 
 ### Node.js/Browser (WASM)
