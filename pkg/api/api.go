@@ -6,6 +6,7 @@ package api
 
 import (
 	"github.com/HugoDaniel/miniray/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/reflect"
 )
 
 // MinifyOptions controls minification behavior.
@@ -135,4 +136,178 @@ func MinifyWhitespaceOnly(source string) MinifyResult {
 	return MinifyWithOptions(source, MinifyOptions{
 		MinifyWhitespace: true,
 	})
+}
+
+// ----------------------------------------------------------------------------
+// Reflection API
+// ----------------------------------------------------------------------------
+
+// ReflectResult contains binding and struct information from a WGSL shader.
+type ReflectResult struct {
+	// Bindings contains all @group/@binding variable declarations.
+	Bindings []BindingInfo `json:"bindings"`
+
+	// Structs contains layout information for all struct types.
+	Structs map[string]StructLayout `json:"structs"`
+
+	// EntryPoints contains all shader entry point functions.
+	EntryPoints []EntryPointInfo `json:"entryPoints"`
+
+	// Errors contains any errors encountered during parsing.
+	Errors []string `json:"errors,omitempty"`
+}
+
+// BindingInfo describes a variable with @group/@binding attributes.
+type BindingInfo struct {
+	// Group is the binding group index from @group(n).
+	Group int `json:"group"`
+
+	// Binding is the binding index from @binding(n).
+	Binding int `json:"binding"`
+
+	// Name is the variable name.
+	Name string `json:"name"`
+
+	// AddressSpace is the memory address space: "uniform", "storage", "handle", or "".
+	AddressSpace string `json:"addressSpace"`
+
+	// AccessMode is the access mode for storage bindings: "read", "write", "read_write", or "".
+	AccessMode string `json:"accessMode,omitempty"`
+
+	// Type is the type as a string (e.g., "MyStruct", "texture_2d<f32>").
+	Type string `json:"type"`
+
+	// Layout contains the memory layout for struct types.
+	// Nil for textures and samplers.
+	Layout *StructLayout `json:"layout"`
+}
+
+// StructLayout describes the memory layout of a struct type.
+type StructLayout struct {
+	// Size is the total size in bytes.
+	Size int `json:"size"`
+
+	// Alignment is the required alignment in bytes.
+	Alignment int `json:"alignment"`
+
+	// Fields contains layout information for each struct field.
+	Fields []FieldInfo `json:"fields"`
+}
+
+// FieldInfo describes a struct field with its memory layout.
+type FieldInfo struct {
+	// Name is the field name.
+	Name string `json:"name"`
+
+	// Type is the field type as a string.
+	Type string `json:"type"`
+
+	// Offset is the byte offset from the start of the struct.
+	Offset int `json:"offset"`
+
+	// Size is the size in bytes.
+	Size int `json:"size"`
+
+	// Alignment is the required alignment in bytes.
+	Alignment int `json:"alignment"`
+
+	// Layout contains nested layout for struct or array-of-struct fields.
+	Layout *StructLayout `json:"layout,omitempty"`
+}
+
+// EntryPointInfo describes a shader entry point function.
+type EntryPointInfo struct {
+	// Name is the function name.
+	Name string `json:"name"`
+
+	// Stage is the shader stage: "vertex", "fragment", or "compute".
+	Stage string `json:"stage"`
+
+	// WorkgroupSize is [x, y, z] for compute shaders, nil for others.
+	WorkgroupSize []int `json:"workgroupSize"`
+}
+
+// Reflect extracts binding, struct, and entry point information from WGSL source.
+// This is useful for shader introspection without minification.
+func Reflect(source string) ReflectResult {
+	result := reflect.Reflect(source)
+
+	// Convert internal types to API types
+	return ReflectResult{
+		Bindings:    convertBindings(result.Bindings),
+		Structs:     convertStructs(result.Structs),
+		EntryPoints: convertEntryPoints(result.EntryPoints),
+		Errors:      result.Errors,
+	}
+}
+
+// convertBindings converts internal binding info to API types.
+func convertBindings(bindings []reflect.BindingInfo) []BindingInfo {
+	result := make([]BindingInfo, len(bindings))
+	for i, b := range bindings {
+		result[i] = BindingInfo{
+			Group:        b.Group,
+			Binding:      b.Binding,
+			Name:         b.Name,
+			AddressSpace: b.AddressSpace,
+			AccessMode:   b.AccessMode,
+			Type:         b.Type,
+			Layout:       convertStructLayout(b.Layout),
+		}
+	}
+	return result
+}
+
+// convertStructs converts internal struct layouts to API types.
+func convertStructs(structs map[string]reflect.StructLayout) map[string]StructLayout {
+	result := make(map[string]StructLayout, len(structs))
+	for name, s := range structs {
+		result[name] = StructLayout{
+			Size:      s.Size,
+			Alignment: s.Alignment,
+			Fields:    convertFields(s.Fields),
+		}
+	}
+	return result
+}
+
+// convertStructLayout converts a single struct layout.
+func convertStructLayout(layout *reflect.StructLayout) *StructLayout {
+	if layout == nil {
+		return nil
+	}
+	return &StructLayout{
+		Size:      layout.Size,
+		Alignment: layout.Alignment,
+		Fields:    convertFields(layout.Fields),
+	}
+}
+
+// convertFields converts field info to API types.
+func convertFields(fields []reflect.FieldInfo) []FieldInfo {
+	result := make([]FieldInfo, len(fields))
+	for i, f := range fields {
+		result[i] = FieldInfo{
+			Name:      f.Name,
+			Type:      f.Type,
+			Offset:    f.Offset,
+			Size:      f.Size,
+			Alignment: f.Alignment,
+			Layout:    convertStructLayout(f.Layout),
+		}
+	}
+	return result
+}
+
+// convertEntryPoints converts entry point info to API types.
+func convertEntryPoints(entryPoints []reflect.EntryPointInfo) []EntryPointInfo {
+	result := make([]EntryPointInfo, len(entryPoints))
+	for i, ep := range entryPoints {
+		result[i] = EntryPointInfo{
+			Name:          ep.Name,
+			Stage:         ep.Stage,
+			WorkgroupSize: ep.WorkgroupSize,
+		}
+	}
+	return result
 }

@@ -150,6 +150,23 @@
   }
 
   /**
+   * Reflect WGSL source to extract binding and struct information.
+   * @param {string} source - WGSL source code
+   * @returns {Object} Reflection result with bindings, structs, entryPoints, and errors
+   */
+  function reflect(source) {
+    if (!_initialized) {
+      throw new Error('miniray not initialized. Call initialize() first.');
+    }
+
+    if (typeof source !== 'string') {
+      throw new Error('source must be a string');
+    }
+
+    return globalThis.__miniray.reflect(source);
+  }
+
+  /**
    * Check if initialized.
    * @returns {boolean}
    */
@@ -171,6 +188,7 @@
   return {
     initialize: initialize,
     minify: minify,
+    reflect: reflect,
     isInitialized: isInitialized,
     get version() { return getVersion(); }
   };

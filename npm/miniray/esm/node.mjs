@@ -139,6 +139,23 @@ export function minify(source, options) {
 }
 
 /**
+ * Reflect WGSL source to extract binding and struct information.
+ * @param {string} source - WGSL source code
+ * @returns {Object} Reflection result with bindings, structs, entryPoints, and errors
+ */
+export function reflect(source) {
+  if (!_initialized) {
+    throw new Error('miniray not initialized. Call initialize() first.');
+  }
+
+  if (typeof source !== 'string') {
+    throw new Error('source must be a string');
+  }
+
+  return globalThis.__miniray.reflect(source);
+}
+
+/**
  * Check if initialized.
  * @returns {boolean}
  */
@@ -163,6 +180,7 @@ export const version = getVersion;
 export default {
   initialize,
   minify,
+  reflect,
   isInitialized,
   version: getVersion
 };

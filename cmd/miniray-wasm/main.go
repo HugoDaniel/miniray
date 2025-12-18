@@ -9,6 +9,7 @@ import (
 	"syscall/js"
 
 	"github.com/HugoDaniel/miniray/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/reflect"
 )
 
 var version = "0.1.0"
@@ -30,6 +31,7 @@ func main() {
 	// Export functions to JavaScript
 	js.Global().Set("__miniray", js.ValueOf(map[string]interface{}{
 		"minify":  js.FuncOf(minifyJS),
+		"reflect": js.FuncOf(reflectJS),
 		"version": version,
 	}))
 
@@ -184,4 +186,128 @@ func makeError(msg string) interface{} {
 		"originalSize": 0,
 		"minifiedSize": 0,
 	}
+}
+
+// reflectJS is the JavaScript-callable reflect function.
+// Signature: __miniray.reflect(source: string) => object
+func reflectJS(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return makeReflectError("reflect requires 1 argument (source)")
+	}
+
+	source := args[0].String()
+	result := reflect.Reflect(source)
+
+	// Convert errors to []interface{}
+	errors := make([]interface{}, len(result.Errors))
+	for i, e := range result.Errors {
+		errors[i] = e
+	}
+
+	// Convert to JS-friendly format
+	return map[string]interface{}{
+		"bindings":    convertBindingsToJS(result.Bindings),
+		"structs":     convertStructsToJS(result.Structs),
+		"entryPoints": convertEntryPointsToJS(result.EntryPoints),
+		"errors":      errors,
+	}
+}
+
+// makeReflectError creates a reflect result object with an error.
+func makeReflectError(msg string) interface{} {
+	return map[string]interface{}{
+		"bindings":    []interface{}{},
+		"structs":     map[string]interface{}{},
+		"entryPoints": []interface{}{},
+		"errors":      []interface{}{msg},
+	}
+}
+
+// convertBindingsToJS converts bindings to JS-friendly format.
+func convertBindingsToJS(bindings []reflect.BindingInfo) []interface{} {
+	result := make([]interface{}, len(bindings))
+	for i, b := range bindings {
+		binding := map[string]interface{}{
+			"group":        b.Group,
+			"binding":      b.Binding,
+			"name":         b.Name,
+			"addressSpace": b.AddressSpace,
+			"type":         b.Type,
+			"layout":       nil,
+		}
+		if b.AccessMode != "" {
+			binding["accessMode"] = b.AccessMode
+		}
+		if b.Layout != nil {
+			binding["layout"] = convertStructLayoutToJS(b.Layout)
+		}
+		result[i] = binding
+	}
+	return result
+}
+
+// convertStructsToJS converts struct map to JS-friendly format.
+func convertStructsToJS(structs map[string]reflect.StructLayout) map[string]interface{} {
+	result := make(map[string]interface{}, len(structs))
+	for name, s := range structs {
+		result[name] = map[string]interface{}{
+			"size":      s.Size,
+			"alignment": s.Alignment,
+			"fields":    convertFieldsToJS(s.Fields),
+		}
+	}
+	return result
+}
+
+// convertStructLayoutToJS converts a struct layout to JS-friendly format.
+func convertStructLayoutToJS(layout *reflect.StructLayout) interface{} {
+	if layout == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"size":      layout.Size,
+		"alignment": layout.Alignment,
+		"fields":    convertFieldsToJS(layout.Fields),
+	}
+}
+
+// convertFieldsToJS converts fields to JS-friendly format.
+func convertFieldsToJS(fields []reflect.FieldInfo) []interface{} {
+	result := make([]interface{}, len(fields))
+	for i, f := range fields {
+		field := map[string]interface{}{
+			"name":      f.Name,
+			"type":      f.Type,
+			"offset":    f.Offset,
+			"size":      f.Size,
+			"alignment": f.Alignment,
+		}
+		if f.Layout != nil {
+			field["layout"] = convertStructLayoutToJS(f.Layout)
+		}
+		result[i] = field
+	}
+	return result
+}
+
+// convertEntryPointsToJS converts entry points to JS-friendly format.
+func convertEntryPointsToJS(entryPoints []reflect.EntryPointInfo) []interface{} {
+	result := make([]interface{}, len(entryPoints))
+	for i, ep := range entryPoints {
+		entry := map[string]interface{}{
+			"name":          ep.Name,
+			"stage":         ep.Stage,
+			"workgroupSize": nil,
+		}
+		if ep.WorkgroupSize != nil {
+			// Convert []int to []interface{} for JS
+			wgSize := make([]interface{}, len(ep.WorkgroupSize))
+			for j, v := range ep.WorkgroupSize {
+				wgSize[j] = v
+			}
+			entry["workgroupSize"] = wgSize
+		}
+		result[i] = entry
+	}
+	return result
 }

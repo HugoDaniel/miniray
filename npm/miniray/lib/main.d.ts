@@ -76,6 +76,82 @@ export interface MinifyResult {
 }
 
 /**
+ * Result of shader reflection.
+ */
+export interface ReflectResult {
+  /** Binding declarations (@group/@binding variables) */
+  bindings: BindingInfo[];
+  /** Struct type layouts */
+  structs: Record<string, StructLayout>;
+  /** Entry point functions */
+  entryPoints: EntryPointInfo[];
+  /** Parse errors, if any */
+  errors: string[];
+}
+
+/**
+ * Information about a binding variable.
+ */
+export interface BindingInfo {
+  /** Binding group index from @group(n) */
+  group: number;
+  /** Binding index from @binding(n) */
+  binding: number;
+  /** Variable name */
+  name: string;
+  /** Address space: "uniform", "storage", "handle", or "" */
+  addressSpace: string;
+  /** Access mode for storage: "read", "write", "read_write", or undefined */
+  accessMode?: string;
+  /** Type as a string (e.g., "MyStruct", "texture_2d<f32>") */
+  type: string;
+  /** Memory layout for struct types, null for textures/samplers */
+  layout: StructLayout | null;
+}
+
+/**
+ * Memory layout of a struct type.
+ */
+export interface StructLayout {
+  /** Total size in bytes */
+  size: number;
+  /** Required alignment in bytes */
+  alignment: number;
+  /** Field layouts */
+  fields: FieldInfo[];
+}
+
+/**
+ * Layout information for a struct field.
+ */
+export interface FieldInfo {
+  /** Field name */
+  name: string;
+  /** Field type as a string */
+  type: string;
+  /** Byte offset from start of struct */
+  offset: number;
+  /** Size in bytes */
+  size: number;
+  /** Required alignment in bytes */
+  alignment: number;
+  /** Nested layout for struct or array-of-struct fields */
+  layout?: StructLayout;
+}
+
+/**
+ * Information about a shader entry point.
+ */
+export interface EntryPointInfo {
+  /** Function name */
+  name: string;
+  /** Shader stage: "vertex", "fragment", or "compute" */
+  stage: string;
+  /** Workgroup size [x, y, z] for compute, null otherwise */
+  workgroupSize: [number, number, number] | null;
+}
+
+/**
  * Options for initializing the WASM module.
  */
 export interface InitializeOptions {
@@ -105,6 +181,13 @@ export function initialize(options: InitializeOptions): Promise<void>;
  * @returns Minification result
  */
 export function minify(source: string, options?: MinifyOptions): MinifyResult;
+
+/**
+ * Reflect WGSL source to extract binding and struct information.
+ * @param source - WGSL source code to analyze
+ * @returns Reflection result with bindings, structs, entryPoints, and errors
+ */
+export function reflect(source: string): ReflectResult;
 
 /**
  * Check if the WASM module is initialized.

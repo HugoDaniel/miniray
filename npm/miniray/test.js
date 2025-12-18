@@ -137,6 +137,72 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     console.log(`\n${passed} passed, ${failed} failed`);
 
+    // Test reflect function
+    console.log('\n--- Reflect API Tests ---');
+    const reflectTests = [
+        {
+            name: 'Reflect basic struct',
+            input: `struct Inputs { time: f32, resolution: vec2<u32>, brightness: f32 }
+@group(0) @binding(0) var<uniform> u: Inputs;`,
+            check: (r) => {
+                if (r.errors.length > 0) return false;
+                if (r.bindings.length !== 1) return false;
+                if (r.bindings[0].group !== 0 || r.bindings[0].binding !== 0) return false;
+                if (r.bindings[0].name !== 'u') return false;
+                if (r.bindings[0].addressSpace !== 'uniform') return false;
+                if (!r.bindings[0].layout) return false;
+                if (r.bindings[0].layout.size !== 24) return false;  // 4 + pad(4) + 8 + 4 = 20, rounded to 24
+                return true;
+            }
+        },
+        {
+            name: 'Reflect entry point',
+            input: `@compute @workgroup_size(8, 8, 1) fn main() {}`,
+            check: (r) => {
+                if (r.errors.length > 0) return false;
+                if (r.entryPoints.length !== 1) return false;
+                if (r.entryPoints[0].stage !== 'compute') return false;
+                if (r.entryPoints[0].workgroupSize[0] !== 8) return false;
+                return true;
+            }
+        },
+        {
+            name: 'Reflect texture/sampler',
+            input: `@group(0) @binding(0) var texSampler: sampler;
+@group(0) @binding(1) var texture: texture_2d<f32>;`,
+            check: (r) => {
+                if (r.errors.length > 0) return false;
+                if (r.bindings.length !== 2) return false;
+                const sampler = r.bindings.find(b => b.name === 'texSampler');
+                if (!sampler || sampler.addressSpace !== 'handle') return false;
+                if (sampler.layout !== null) return false;  // No layout for samplers
+                return true;
+            }
+        }
+    ];
+
+    for (const test of reflectTests) {
+        try {
+            const result = globalThis.__miniray.reflect(test.input);
+            const ok = test.check(result);
+
+            if (ok) {
+                console.log(`✓ ${test.name}`);
+                passed++;
+            } else {
+                console.log(`✗ ${test.name}`);
+                console.log(`  Result:`, JSON.stringify(result, null, 2));
+                failed++;
+            }
+        } catch (err) {
+            console.log(`✗ ${test.name}`);
+            console.log(`  Error: ${err.message}`);
+            failed++;
+        }
+    }
+
+    console.log(`\n${passed} passed, ${failed} failed`);
+
     // Show example output
     console.log('\n--- Example Output ---');
     const example = `@group(0) @binding(0) var<uniform> uniforms: f32;
