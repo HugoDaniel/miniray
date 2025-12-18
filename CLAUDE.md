@@ -44,11 +44,12 @@ Source → Lexer → Parser → AST → Minifier → Printer → Output
 | `internal/parser` | Two-pass parser (parse → visit/bind) |
 | `internal/printer` | Code generator with minification |
 | `internal/renamer` | Frequency-based identifier renaming |
+| `internal/reflect` | Shader reflection and WGSL memory layout computation |
 | `internal/config` | JSON config file support |
 | `internal/minifier` | Orchestrates the pipeline |
 | `pkg/api` | Public Go API |
 | `cmd/miniray` | CLI |
-| `cmd/miniray` | WASM entry point |
+| `cmd/miniray-wasm` | WASM entry point |
 | `npm/miniray` | NPM package |
 
 ### Key Design Decisions

@@ -39,10 +39,16 @@ miniray --config myconfig.json input.wgsl  # With config
 
 ### Node.js/Browser (WASM)
 ```javascript
-import { initialize, minify } from 'miniray';
+import { initialize, minify, reflect } from 'miniray';
 await initialize();  // Required once, auto-finds WASM in Node
+
+// Minification
 const result = minify(source, options);
 // result: { code, errors[], originalSize, minifiedSize, sourceMap? }
+
+// Reflection (extract bindings, structs, entry points)
+const info = reflect(source);
+// info: { bindings[], structs{}, entryPoints[], errors[] }
 ```
 
 ### Go
@@ -51,6 +57,7 @@ import "github.com/HugoDaniel/miniray/pkg/api"
 result := api.Minify(source)                    // Full minification
 result := api.MinifyWhitespaceOnly(source)      // Safe mode
 result := api.MinifyWithOptions(source, opts)   // Custom
+info := api.Reflect(source)                     // Shader reflection
 ```
 
 ## Options Reference
@@ -215,6 +222,34 @@ for (const msg of info.messages) {
       column: msg.linePos - 1  // source-map uses 0-based columns
     });
     console.log(`${pos.source}:${pos.line}:${pos.column + 1} - ${msg.message}`);
+  }
+}
+```
+
+### Pattern 8: Shader Reflection for Buffer Layout
+Use `reflect()` to get memory layouts for creating typed array views:
+
+```javascript
+const info = reflect(source);
+const binding = info.bindings.find(b => b.name === 'uniforms');
+if (binding?.layout) {
+  const buffer = device.createBuffer({
+    size: binding.layout.size,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+  });
+  // Use field offsets to write data
+  for (const field of binding.layout.fields) {
+    console.log(`${field.name}: offset=${field.offset}, size=${field.size}`);
+  }
+}
+```
+
+### Pattern 9: Extract Entry Points and Workgroup Size
+```javascript
+const info = reflect(source);
+for (const ep of info.entryPoints) {
+  if (ep.stage === 'compute' && ep.workgroupSize) {
+    console.log(`${ep.name}: workgroup_size(${ep.workgroupSize.join(', ')})`);
   }
 }
 ```

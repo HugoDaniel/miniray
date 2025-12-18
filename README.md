@@ -12,6 +12,7 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspir
 - **Identifier renaming** - Shorten local variable and function names
 - **Syntax optimization** - Optimize numeric literals and syntax patterns
 - **Source maps** - Generate v3 source maps for debugging minified shaders
+- **Shader reflection** - Extract bindings, struct layouts, and entry points with WGSL-spec memory layout computation
 - **API-aware** - Preserves entry point names, `@location`, `@binding`, and `@builtin` declarations
 - **WebAssembly build** - Run in browsers and Node.js via `miniray` package
 
@@ -237,6 +238,39 @@ for (const msg of info.messages) {
 }
 ```
 
+### Shader Reflection
+
+Extract binding information, struct memory layouts, and entry points from WGSL source without minifying:
+
+```javascript
+import { initialize, reflect } from 'miniray';
+
+await initialize();
+
+const result = reflect(`
+  struct Uniforms { time: f32, resolution: vec2<u32> }
+  @group(0) @binding(0) var<uniform> u: Uniforms;
+  @group(0) @binding(1) var tex: texture_2d<f32>;
+  @compute @workgroup_size(8, 8) fn main() {}
+`);
+
+console.log(result.bindings);
+// [
+//   { group: 0, binding: 0, name: "u", addressSpace: "uniform", type: "Uniforms",
+//     layout: { size: 16, alignment: 8, fields: [...] } },
+//   { group: 0, binding: 1, name: "tex", addressSpace: "handle", type: "texture_2d<f32>",
+//     layout: null }
+// ]
+
+console.log(result.entryPoints);
+// [{ name: "main", stage: "compute", workgroupSize: [8, 8, 1] }]
+
+console.log(result.structs);
+// { "Uniforms": { size: 16, alignment: 8, fields: [...] } }
+```
+
+Memory layouts follow the WGSL specification (vec3 has align=16, size=12; proper struct padding).
+
 ### Go API
 
 ```go
@@ -262,6 +296,17 @@ result := api.MinifyWhitespaceOnly(source)
 fmt.Printf("Minified: %d -> %d bytes\n",
     result.OriginalSize, result.MinifiedSize)
 fmt.Println(result.Code)
+
+// Shader reflection
+info := api.Reflect(source)
+for _, binding := range info.Bindings {
+    fmt.Printf("@group(%d) @binding(%d) %s: %s\n",
+        binding.Group, binding.Binding, binding.Name, binding.Type)
+    if binding.Layout != nil {
+        fmt.Printf("  size=%d, alignment=%d\n",
+            binding.Layout.Size, binding.Layout.Alignment)
+    }
+}
 ```
 
 #### Source Maps in Go
@@ -340,6 +385,7 @@ Source → Lexer → Parser → AST → Minifier → Printer → Output
 | `internal/ast` | Complete WGSL AST types |
 | `internal/renamer` | Frequency-based identifier renaming |
 | `internal/printer` | Code generation with minification |
+| `internal/reflect` | Shader reflection and memory layout computation |
 | `internal/minifier` | Orchestrates the minification pipeline |
 | `pkg/api` | Public API for programmatic use |
 | `cmd/miniray` | CLI entry point |

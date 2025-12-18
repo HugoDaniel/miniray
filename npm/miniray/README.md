@@ -60,7 +60,7 @@ console.log(result.code);
 
 ### `initialize(options)`
 
-Initialize the WASM module. Must be called before `minify()`.
+Initialize the WASM module. Must be called before `minify()` or `reflect()`.
 
 ```typescript
 interface InitializeOptions {
@@ -94,6 +94,81 @@ interface MinifyResult {
   sourceMap?: string;     // Source map JSON (if sourceMap: true)
 }
 ```
+
+### `reflect(source)`
+
+Extract binding information, struct layouts, and entry points from WGSL source.
+
+```typescript
+interface ReflectResult {
+  bindings: BindingInfo[];
+  structs: Record<string, StructLayout>;
+  entryPoints: EntryPointInfo[];
+  errors: string[];
+}
+
+interface BindingInfo {
+  group: number;
+  binding: number;
+  name: string;
+  addressSpace: string;    // "uniform", "storage", "handle"
+  accessMode?: string;     // "read", "write", "read_write" (for storage)
+  type: string;
+  layout: StructLayout | null;  // null for textures/samplers
+}
+
+interface StructLayout {
+  size: number;
+  alignment: number;
+  fields: FieldInfo[];
+}
+
+interface FieldInfo {
+  name: string;
+  type: string;
+  offset: number;
+  size: number;
+  alignment: number;
+  layout?: StructLayout;   // for nested structs
+}
+
+interface EntryPointInfo {
+  name: string;
+  stage: string;           // "vertex", "fragment", "compute"
+  workgroupSize: number[] | null;  // [x, y, z] for compute, null otherwise
+}
+```
+
+**Example:**
+
+```javascript
+const result = reflect(`
+  struct Uniforms { time: f32, resolution: vec2<u32> }
+  @group(0) @binding(0) var<uniform> u: Uniforms;
+  @compute @workgroup_size(8, 8) fn main() {}
+`);
+
+console.log(result.bindings[0]);
+// {
+//   group: 0, binding: 0, name: "u",
+//   addressSpace: "uniform", type: "Uniforms",
+//   layout: {
+//     size: 16, alignment: 8,
+//     fields: [
+//       { name: "time", type: "f32", offset: 0, size: 4, alignment: 4 },
+//       { name: "resolution", type: "vec2<u32>", offset: 8, size: 8, alignment: 8 }
+//     ]
+//   }
+// }
+
+console.log(result.entryPoints[0]);
+// { name: "main", stage: "compute", workgroupSize: [8, 8, 1] }
+```
+
+Memory layouts follow the WGSL specification:
+- `vec3` has alignment=16 but size=12
+- Struct members are aligned to their natural alignment
+- Struct size is rounded up to struct alignment
 
 ### `isInitialized()`
 
