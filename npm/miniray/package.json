@@ -1,6 +1,6 @@
 {
   "name": "miniray",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "WGSL minifier for WebGPU shaders - WebAssembly build",
   "main": "lib/main.js",
   "module": "esm/browser.js",

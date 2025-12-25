@@ -6,8 +6,16 @@ const path = require('path');
 // Parse command line arguments
 const args = process.argv.slice(2);
 
+// Check for reflect subcommand
+if (args[0] === 'reflect') {
+  runReflect(args.slice(1));
+} else {
+  runMinify(args);
+}
+
 function printUsage() {
   console.log(`Usage: miniray [options] [file]
+       miniray reflect [options] [file]
 
 Options:
   -h, --help                  Show this help message
@@ -19,13 +27,39 @@ Options:
   --keep-names <names>        Comma-separated list of names to preserve
   --config <file>             Load config from JSON file
 
+Subcommands:
+  reflect                     Extract bindings, struct layouts, and entry points as JSON
+                              Run 'miniray reflect --help' for details
+
 If no file is specified, reads from stdin.
 
 Examples:
   miniray shader.wgsl
   miniray shader.wgsl -o shader.min.wgsl
+  miniray reflect shader.wgsl
   miniray --keep-names main,uniforms shader.wgsl
   cat shader.wgsl | miniray > shader.min.wgsl
+`);
+}
+
+function printReflectUsage() {
+  console.log(`Usage: miniray reflect [options] [file]
+
+Extract binding information, struct layouts, and entry points from WGSL source.
+
+Options:
+  -h, --help          Show this help message
+  -o, --output <file> Write JSON output to file (default: stdout)
+  --compact           Output compact JSON (default: pretty-printed)
+
+Output:
+  JSON object with bindings, structs, entryPoints, and errors.
+  Memory layouts follow WGSL specification (vec3 align=16, size=12, etc).
+
+Examples:
+  miniray reflect shader.wgsl
+  miniray reflect shader.wgsl -o info.json
+  miniray reflect --compact shader.wgsl
 `);
 }
 
@@ -34,101 +68,171 @@ function printVersion() {
   console.log(`miniray ${pkg.version}`);
 }
 
-// Parse options
-let inputFile = null;
-let outputFile = null;
-let options = {
-  minifyWhitespace: true,
-  minifyIdentifiers: true,
-  minifySyntax: true,
-  mangleExternalBindings: false,
-  keepNames: []
-};
-let configFile = null;
+function runReflect(args) {
+  let inputFile = null;
+  let outputFile = null;
+  let compact = false;
 
-for (let i = 0; i < args.length; i++) {
-  const arg = args[i];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
 
-  if (arg === '-h' || arg === '--help') {
-    printUsage();
-    process.exit(0);
-  } else if (arg === '-v' || arg === '--version') {
-    printVersion();
-    process.exit(0);
-  } else if (arg === '-o' || arg === '--output') {
-    outputFile = args[++i];
-  } else if (arg === '--no-mangle') {
-    options.minifyIdentifiers = false;
-  } else if (arg === '--no-whitespace') {
-    options.minifyWhitespace = false;
-  } else if (arg === '--mangle-external-bindings') {
-    options.mangleExternalBindings = true;
-  } else if (arg === '--keep-names') {
-    options.keepNames = args[++i].split(',').map(s => s.trim());
-  } else if (arg === '--config') {
-    configFile = args[++i];
-  } else if (!arg.startsWith('-')) {
-    inputFile = arg;
-  } else {
-    console.error(`Unknown option: ${arg}`);
-    process.exit(1);
-  }
-}
-
-// Load config file if specified
-if (configFile) {
-  try {
-    const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-    if (config.minifyWhitespace !== undefined) options.minifyWhitespace = config.minifyWhitespace;
-    if (config.minifyIdentifiers !== undefined) options.minifyIdentifiers = config.minifyIdentifiers;
-    if (config.minifySyntax !== undefined) options.minifySyntax = config.minifySyntax;
-    if (config.mangleExternalBindings !== undefined) options.mangleExternalBindings = config.mangleExternalBindings;
-    if (config.keepNames) options.keepNames = [...options.keepNames, ...config.keepNames];
-  } catch (err) {
-    console.error(`Error loading config file: ${err.message}`);
-    process.exit(1);
-  }
-}
-
-async function main() {
-  // Read input
-  let source;
-  if (inputFile) {
-    try {
-      source = fs.readFileSync(inputFile, 'utf8');
-    } catch (err) {
-      console.error(`Error reading file: ${err.message}`);
-      process.exit(1);
-    }
-  } else {
-    // Read from stdin
-    source = fs.readFileSync(0, 'utf8');
-  }
-
-  // Initialize WASM and minify
-  const { initialize, minify } = require('../lib/main.js');
-
-  try {
-    await initialize();
-    const result = minify(source, options);
-
-    if (result.errors && result.errors.length > 0) {
-      for (const err of result.errors) {
-        console.error(`Error at line ${err.line}, column ${err.column}: ${err.message}`);
-      }
-      process.exit(1);
-    }
-
-    // Write output
-    if (outputFile) {
-      fs.writeFileSync(outputFile, result.code);
+    if (arg === '-h' || arg === '--help') {
+      printReflectUsage();
+      process.exit(0);
+    } else if (arg === '-v' || arg === '--version') {
+      printVersion();
+      process.exit(0);
+    } else if (arg === '-o' || arg === '--output') {
+      outputFile = args[++i];
+    } else if (arg === '--compact') {
+      compact = true;
+    } else if (!arg.startsWith('-')) {
+      inputFile = arg;
     } else {
-      process.stdout.write(result.code);
+      console.error(`Unknown option: ${arg}`);
+      process.exit(1);
     }
-  } catch (err) {
-    console.error(`Minification error: ${err.message}`);
-    process.exit(1);
   }
+
+  async function main() {
+    // Read input
+    let source;
+    if (inputFile) {
+      try {
+        source = fs.readFileSync(inputFile, 'utf8');
+      } catch (err) {
+        console.error(`Error reading file: ${err.message}`);
+        process.exit(1);
+      }
+    } else {
+      // Read from stdin
+      source = fs.readFileSync(0, 'utf8');
+    }
+
+    // Initialize WASM and reflect
+    const { initialize, reflect } = require('../lib/main.js');
+
+    try {
+      await initialize();
+      const result = reflect(source);
+
+      // Format output
+      const output = compact
+        ? JSON.stringify(result)
+        : JSON.stringify(result, null, 2);
+
+      // Write output
+      if (outputFile) {
+        fs.writeFileSync(outputFile, output + '\n');
+      } else {
+        console.log(output);
+      }
+    } catch (err) {
+      console.error(`Reflection error: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  main();
 }
 
-main();
+function runMinify(args) {
+  // Parse options
+  let inputFile = null;
+  let outputFile = null;
+  let options = {
+    minifyWhitespace: true,
+    minifyIdentifiers: true,
+    minifySyntax: true,
+    mangleExternalBindings: false,
+    keepNames: []
+  };
+  let configFile = null;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === '-h' || arg === '--help') {
+      printUsage();
+      process.exit(0);
+    } else if (arg === '-v' || arg === '--version') {
+      printVersion();
+      process.exit(0);
+    } else if (arg === '-o' || arg === '--output') {
+      outputFile = args[++i];
+    } else if (arg === '--no-mangle') {
+      options.minifyIdentifiers = false;
+    } else if (arg === '--no-whitespace') {
+      options.minifyWhitespace = false;
+    } else if (arg === '--mangle-external-bindings') {
+      options.mangleExternalBindings = true;
+    } else if (arg === '--keep-names') {
+      options.keepNames = args[++i].split(',').map(s => s.trim());
+    } else if (arg === '--config') {
+      configFile = args[++i];
+    } else if (!arg.startsWith('-')) {
+      inputFile = arg;
+    } else {
+      console.error(`Unknown option: ${arg}`);
+      process.exit(1);
+    }
+  }
+
+  // Load config file if specified
+  if (configFile) {
+    try {
+      const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+      if (config.minifyWhitespace !== undefined) options.minifyWhitespace = config.minifyWhitespace;
+      if (config.minifyIdentifiers !== undefined) options.minifyIdentifiers = config.minifyIdentifiers;
+      if (config.minifySyntax !== undefined) options.minifySyntax = config.minifySyntax;
+      if (config.mangleExternalBindings !== undefined) options.mangleExternalBindings = config.mangleExternalBindings;
+      if (config.keepNames) options.keepNames = [...options.keepNames, ...config.keepNames];
+    } catch (err) {
+      console.error(`Error loading config file: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  async function main() {
+    // Read input
+    let source;
+    if (inputFile) {
+      try {
+        source = fs.readFileSync(inputFile, 'utf8');
+      } catch (err) {
+        console.error(`Error reading file: ${err.message}`);
+        process.exit(1);
+      }
+    } else {
+      // Read from stdin
+      source = fs.readFileSync(0, 'utf8');
+    }
+
+    // Initialize WASM and minify
+    const { initialize, minify } = require('../lib/main.js');
+
+    try {
+      await initialize();
+      const result = minify(source, options);
+
+      if (result.errors && result.errors.length > 0) {
+        for (const err of result.errors) {
+          console.error(`Error at line ${err.line}, column ${err.column}: ${err.message}`);
+        }
+        process.exit(1);
+      }
+
+      // Write output
+      if (outputFile) {
+        fs.writeFileSync(outputFile, result.code);
+      } else {
+        process.stdout.write(result.code);
+      }
+    } catch (err) {
+      console.error(`Minification error: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  main();
+}
