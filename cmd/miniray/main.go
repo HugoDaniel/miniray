@@ -122,19 +122,23 @@ func run() error {
 	flag.BoolVar(&showHelp, "help", false, "Print help and exit")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "wgslmin - WGSL Minifier v%s\n\n", version)
-		fmt.Fprintf(os.Stderr, "Usage: wgslmin [options] <input.wgsl>\n")
-		fmt.Fprintf(os.Stderr, "       cat input.wgsl | wgslmin [options]\n\n")
+		fmt.Fprintf(os.Stderr, "miniray - WGSL Minifier v%s\n\n", version)
+		fmt.Fprintf(os.Stderr, "Usage: miniray [options] <input.wgsl>\n")
+		fmt.Fprintf(os.Stderr, "       miniray reflect [options] <input.wgsl>\n")
+		fmt.Fprintf(os.Stderr, "       cat input.wgsl | miniray [options]\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nSubcommands:\n")
+		fmt.Fprintf(os.Stderr, "  reflect    Extract bindings, struct layouts, and entry points as JSON\n")
+		fmt.Fprintf(os.Stderr, "             Run 'miniray reflect --help' for details\n")
 		fmt.Fprintf(os.Stderr, "\nConfig file:\n")
-		fmt.Fprintf(os.Stderr, "  Searches for wgslmin.json or .wgslminrc in current and parent directories.\n")
+		fmt.Fprintf(os.Stderr, "  Searches for miniray.json or .minirayrc in current and parent directories.\n")
 		fmt.Fprintf(os.Stderr, "  CLI flags override config file settings.\n")
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  wgslmin shader.wgsl -o shader.min.wgsl\n")
-		fmt.Fprintf(os.Stderr, "  cat shader.wgsl | wgslmin > shader.min.wgsl\n")
-		fmt.Fprintf(os.Stderr, "  wgslmin --no-mangle shader.wgsl\n")
-		fmt.Fprintf(os.Stderr, "  wgslmin --mangle-external-bindings shader.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  miniray shader.wgsl -o shader.min.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  miniray reflect shader.wgsl -o info.json\n")
+		fmt.Fprintf(os.Stderr, "  cat shader.wgsl | miniray > shader.min.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  miniray --no-mangle shader.wgsl\n")
 	}
 
 	flag.Parse()
@@ -145,7 +149,7 @@ func run() error {
 	}
 
 	if showVersion {
-		fmt.Printf("wgslmin v%s (%s)\n", version, commit)
+		fmt.Printf("miniray v%s (%s)\n", version, commit)
 		return nil
 	}
 
