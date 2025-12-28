@@ -264,7 +264,7 @@ for (const msg of info.messages) {
 
 ### Shader Reflection
 
-Extract binding information, struct memory layouts, and entry points from WGSL source without minifying:
+Extract binding information, struct memory layouts, and entry points from WGSL source:
 
 ```javascript
 import { initialize, reflect } from 'miniray';
@@ -280,10 +280,11 @@ const result = reflect(`
 
 console.log(result.bindings);
 // [
-//   { group: 0, binding: 0, name: "u", addressSpace: "uniform", type: "Uniforms",
+//   { group: 0, binding: 0, name: "u", nameMapped: "u", addressSpace: "uniform",
+//     type: "Uniforms", typeMapped: "Uniforms",
 //     layout: { size: 16, alignment: 8, fields: [...] } },
-//   { group: 0, binding: 1, name: "tex", addressSpace: "handle", type: "texture_2d<f32>",
-//     layout: null }
+//   { group: 0, binding: 1, name: "tex", addressSpace: "handle",
+//     type: "texture_2d<f32>", layout: null }
 // ]
 
 console.log(result.entryPoints);
@@ -294,6 +295,73 @@ console.log(result.structs);
 ```
 
 Memory layouts follow the WGSL specification (vec3 has align=16, size=12; proper struct padding).
+
+#### Array Bindings
+
+For array type bindings (e.g., `array<Particle>` or `array<vec4f, 100>`), reflection provides detailed array metadata:
+
+```javascript
+const result = reflect(`
+  struct Particle { position: vec3f, velocity: vec3f, lifetime: f32 }
+  @group(0) @binding(0) var<storage> particles: array<Particle>;
+`);
+
+const binding = result.bindings[0];
+console.log(binding.array);
+// {
+//   depth: 1,                    // Nesting depth (1 = simple array)
+//   elementCount: null,          // null for runtime-sized arrays
+//   elementStride: 32,           // Bytes per element (size + padding)
+//   totalSize: null,             // null for runtime-sized
+//   elementType: "Particle",     // Original type name
+//   elementTypeMapped: "Particle", // Minified name (see below)
+//   elementLayout: { size: 28, alignment: 16, fields: [...] }
+// }
+```
+
+For nested arrays (e.g., `array<array<f32, 4>, 10>`), the `array` field contains nested `ArrayInfo`:
+
+```javascript
+// depth: 1 for outer, depth: 2 for inner
+// outer.array points to inner array info
+```
+
+#### Combined Minify + Reflect
+
+When you need both minified code and reflection data with actual minified names, use `minifyAndReflect`:
+
+```javascript
+import { initialize, minifyAndReflect } from 'miniray';
+
+await initialize();
+
+const result = minifyAndReflect(`
+  struct Particle { position: vec3f, velocity: vec3f }
+  @group(0) @binding(0) var<storage> particles: array<Particle>;
+  @compute @workgroup_size(64) fn main() { /* ... */ }
+`);
+
+// result.code - minified WGSL
+// result.reflect - reflection with minified names
+
+console.log(result.reflect.bindings[0]);
+// {
+//   name: "particles",           // Original name
+//   nameMapped: "particles",     // Minified (unchanged - external binding)
+//   type: "array<Particle>",     // Original type
+//   typeMapped: "array<a>",      // Minified type (Particle → a)
+//   array: {
+//     elementType: "Particle",
+//     elementTypeMapped: "a",    // Minified struct name
+//     elementLayout: { fields: [
+//       { name: "position", nameMapped: "position", ... },
+//       { name: "velocity", nameMapped: "velocity", ... }
+//     ]}
+//   }
+// }
+```
+
+This is useful when creating buffer bindings that need to reference minified struct field names.
 
 ### Go API
 
@@ -321,7 +389,7 @@ fmt.Printf("Minified: %d -> %d bytes\n",
     result.OriginalSize, result.MinifiedSize)
 fmt.Println(result.Code)
 
-// Shader reflection
+// Shader reflection (without minification)
 info := api.Reflect(source)
 for _, binding := range info.Bindings {
     fmt.Printf("@group(%d) @binding(%d) %s: %s\n",
@@ -330,6 +398,18 @@ for _, binding := range info.Bindings {
         fmt.Printf("  size=%d, alignment=%d\n",
             binding.Layout.Size, binding.Layout.Alignment)
     }
+    if binding.Array != nil {
+        fmt.Printf("  array: elementStride=%d, elementType=%s\n",
+            binding.Array.ElementStride, binding.Array.ElementType)
+    }
+}
+
+// Combined minify + reflect (with minified names)
+combined := api.MinifyAndReflect(source)
+fmt.Println(combined.Code)  // Minified WGSL
+for _, b := range combined.Reflect.Bindings {
+    fmt.Printf("%s -> %s (type: %s -> %s)\n",
+        b.Name, b.NameMapped, b.Type, b.TypeMapped)
 }
 ```
 

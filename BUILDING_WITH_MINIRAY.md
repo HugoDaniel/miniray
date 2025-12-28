@@ -41,7 +41,7 @@ miniray reflect --compact input.wgsl       # Compact JSON
 
 ### Node.js/Browser (WASM)
 ```javascript
-import { initialize, minify, reflect } from 'miniray';
+import { initialize, minify, reflect, minifyAndReflect } from 'miniray';
 await initialize();  // Required once, auto-finds WASM in Node
 
 // Minification
@@ -51,6 +51,10 @@ const result = minify(source, options);
 // Reflection (extract bindings, structs, entry points)
 const info = reflect(source);
 // info: { bindings[], structs{}, entryPoints[], errors[] }
+
+// Combined minify + reflect (with minified names)
+const combined = minifyAndReflect(source, options);
+// combined: { code, reflect: { bindings[], structs{}, ... } }
 ```
 
 ### Go
@@ -60,6 +64,7 @@ result := api.Minify(source)                    // Full minification
 result := api.MinifyWhitespaceOnly(source)      // Safe mode
 result := api.MinifyWithOptions(source, opts)   // Custom
 info := api.Reflect(source)                     // Shader reflection
+combined := api.MinifyAndReflect(source)        // Minify + reflect with mapped names
 ```
 
 ## Options Reference
@@ -246,7 +251,47 @@ if (binding?.layout) {
 }
 ```
 
-### Pattern 9: Extract Entry Points and Workgroup Size
+### Pattern 9: Array Buffer Layout with Stride
+For storage buffers with array types, use `array` metadata for proper stride calculation:
+
+```javascript
+const info = reflect(source);
+const binding = info.bindings.find(b => b.name === 'particles');
+if (binding?.array) {
+  const { elementStride, elementCount, elementLayout } = binding.array;
+  console.log(`Element stride: ${elementStride} bytes`);
+  if (elementCount) {
+    console.log(`Total size: ${elementCount * elementStride} bytes`);
+  }
+  // Access struct fields within each element
+  if (elementLayout) {
+    for (const field of elementLayout.fields) {
+      console.log(`  ${field.name}: offset=${field.offset}`);
+    }
+  }
+}
+```
+
+### Pattern 10: Minify with Reflection for Dynamic Binding
+When you need both minified code and struct layout with minified names:
+
+```javascript
+const result = minifyAndReflect(source);
+
+// Use minified code
+const module = device.createShaderModule({ code: result.code });
+
+// Get binding info with mapped names
+for (const binding of result.reflect.bindings) {
+  console.log(`${binding.name} -> ${binding.nameMapped}`);
+  console.log(`${binding.type} -> ${binding.typeMapped}`);
+  if (binding.array) {
+    console.log(`Element: ${binding.array.elementType} -> ${binding.array.elementTypeMapped}`);
+  }
+}
+```
+
+### Pattern 11: Extract Entry Points and Workgroup Size
 ```javascript
 const info = reflect(source);
 for (const ep of info.entryPoints) {
