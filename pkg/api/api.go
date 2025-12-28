@@ -5,8 +5,11 @@
 package api
 
 import (
+	"github.com/HugoDaniel/miniray/internal/diagnostic"
 	"github.com/HugoDaniel/miniray/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/parser"
 	"github.com/HugoDaniel/miniray/internal/reflect"
+	"github.com/HugoDaniel/miniray/internal/validator"
 )
 
 // Re-export minifier types that are needed for MinifyAndReflect
@@ -456,4 +459,151 @@ func MinifyAndReflectWithOptions(source string, opts MinifyOptions) MinifyAndRef
 	}
 
 	return apiResult
+}
+
+// ----------------------------------------------------------------------------
+// Validation API
+// ----------------------------------------------------------------------------
+
+// ValidateOptions controls validation behavior.
+type ValidateOptions struct {
+	// StrictMode treats warnings as errors.
+	StrictMode bool
+
+	// DiagnosticFilters control which diagnostics are reported.
+	// The map key is the diagnostic rule name (e.g., "derivative_uniformity").
+	// The value is the severity: "error", "warning", "info", or "off".
+	DiagnosticFilters map[string]string
+}
+
+// DiagnosticInfo represents a single validation diagnostic.
+type DiagnosticInfo struct {
+	// Severity is "error", "warning", "info", or "note".
+	Severity string `json:"severity"`
+
+	// Code is the error code (e.g., "E0200" for type mismatch).
+	Code string `json:"code,omitempty"`
+
+	// Message is the human-readable error message.
+	Message string `json:"message"`
+
+	// Line is the 1-based line number.
+	Line int `json:"line"`
+
+	// Column is the 1-based column number.
+	Column int `json:"column"`
+
+	// EndLine is the 1-based end line number (for ranges).
+	EndLine int `json:"endLine,omitempty"`
+
+	// EndColumn is the 1-based end column number (for ranges).
+	EndColumn int `json:"endColumn,omitempty"`
+
+	// SpecRef is a reference to the WGSL spec section.
+	SpecRef string `json:"specRef,omitempty"`
+}
+
+// ValidateResult contains validation output.
+type ValidateResult struct {
+	// Valid is true if no errors were found.
+	Valid bool `json:"valid"`
+
+	// Diagnostics contains all validation messages.
+	Diagnostics []DiagnosticInfo `json:"diagnostics"`
+
+	// ErrorCount is the number of error-level diagnostics.
+	ErrorCount int `json:"errorCount"`
+
+	// WarningCount is the number of warning-level diagnostics.
+	WarningCount int `json:"warningCount"`
+}
+
+// Validate validates WGSL source code and returns diagnostics.
+// This performs full semantic validation compatible with the Dawn Tint compiler.
+func Validate(source string) ValidateResult {
+	return ValidateWithOptions(source, ValidateOptions{})
+}
+
+// ValidateWithOptions validates WGSL source code with custom options.
+func ValidateWithOptions(source string, opts ValidateOptions) ValidateResult {
+	// Parse the source
+	p := parser.New(source)
+	module, parseErrors := p.Parse()
+
+	// Convert diagnostic filters
+	var filters *diagnostic.DiagnosticFilter
+	if len(opts.DiagnosticFilters) > 0 {
+		filters = diagnostic.NewDiagnosticFilter()
+		for rule, severity := range opts.DiagnosticFilters {
+			switch severity {
+			case "off":
+				filters.DisableRule(rule)
+			case "error":
+				filters.SetRule(rule, diagnostic.Error)
+			case "warning":
+				filters.SetRule(rule, diagnostic.Warning)
+			case "info":
+				filters.SetRule(rule, diagnostic.Info)
+			}
+		}
+	}
+
+	// Initialize result
+	result := ValidateResult{
+		Valid:       true,
+		Diagnostics: make([]DiagnosticInfo, 0),
+	}
+
+	// Add parse errors
+	for _, e := range parseErrors {
+		result.Diagnostics = append(result.Diagnostics, DiagnosticInfo{
+			Severity: "error",
+			Code:     "E0001",
+			Message:  e.Message,
+			Line:     e.Line,
+			Column:   e.Column,
+		})
+		result.ErrorCount++
+		result.Valid = false
+	}
+
+	// If parsing succeeded, run semantic validation
+	if len(parseErrors) == 0 {
+		validatorResult := validator.Validate(module, validator.Options{
+			StrictMode:        opts.StrictMode,
+			DiagnosticFilters: filters,
+		})
+
+		// Convert diagnostics
+		for _, d := range validatorResult.Diagnostics.Diagnostics() {
+			severity := "error"
+			switch d.Severity {
+			case diagnostic.Error:
+				severity = "error"
+				result.ErrorCount++
+			case diagnostic.Warning:
+				severity = "warning"
+				result.WarningCount++
+			case diagnostic.Info:
+				severity = "info"
+			case diagnostic.Note:
+				severity = "note"
+			}
+
+			result.Diagnostics = append(result.Diagnostics, DiagnosticInfo{
+				Severity:  severity,
+				Code:      d.Code,
+				Message:   d.Message,
+				Line:      d.Range.Start.Line,
+				Column:    d.Range.Start.Column,
+				EndLine:   d.Range.End.Line,
+				EndColumn: d.Range.End.Column,
+				SpecRef:   d.SpecRef,
+			})
+		}
+
+		result.Valid = !validatorResult.Diagnostics.HasErrors()
+	}
+
+	return result
 }

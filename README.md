@@ -13,6 +13,7 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspir
 - **Syntax optimization** - Optimize numeric literals and syntax patterns
 - **Source maps** - Generate v3 source maps for debugging minified shaders
 - **Shader reflection** - Extract bindings, struct layouts, and entry points with WGSL-spec memory layout computation
+- **Semantic validation** - Type checking, symbol resolution, and uniformity analysis
 - **API-aware** - Preserves entry point names, `@location`, `@binding`, and `@builtin` declarations
 - **WebAssembly build** - Run in browsers and Node.js via `miniray` package
 
@@ -76,6 +77,11 @@ miniray --config myconfig.json shader.wgsl
 miniray reflect shader.wgsl
 miniray reflect shader.wgsl -o info.json
 miniray reflect --compact shader.wgsl | jq '.bindings'
+
+# Validate shader (semantic type checking)
+miniray validate shader.wgsl
+miniray validate --json shader.wgsl
+miniray validate --strict shader.wgsl
 ```
 
 ### Options
@@ -118,6 +124,54 @@ Output includes:
 - `structs`: Map of struct names to their layouts (size, alignment, fields)
 - `entryPoints`: Array of entry point functions with stage and workgroup size
 - `errors`: Parse errors if any
+
+### Validate Subcommand
+
+Validate WGSL source for semantic errors:
+
+```bash
+miniray validate [options] <input.wgsl>
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o <file>` | Write output to file (default: stdout) |
+| `--json` | Output JSON format with detailed diagnostics |
+| `--strict` | Treat warnings as errors |
+
+**Example output:**
+```
+shader.wgsl:5:12: error: cannot return 'i32' from function returning 'f32' [E0200]
+shader.wgsl:8:5: warning: derivative_uniformity violation [W0001]
+
+2 error(s), 1 warning(s)
+```
+
+**JSON output (`--json`):**
+```json
+{
+  "valid": false,
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "E0200",
+      "message": "cannot return 'i32' from function returning 'f32'",
+      "line": 5,
+      "column": 12
+    }
+  ],
+  "errorCount": 1,
+  "warningCount": 0
+}
+```
+
+**Validation checks:**
+- Type mismatches (assignments, return statements, function arguments)
+- Undefined symbols (variables, functions, types)
+- Invalid operations (operators, array indexing, member access)
+- Entry point requirements (return types, parameter attributes)
+- Uniformity analysis for texture sampling and derivatives
+- WGSL spec compliance (reserved identifiers, recursion prohibition)
 
 ### Config File
 
@@ -411,6 +465,25 @@ for _, b := range combined.Reflect.Bindings {
     fmt.Printf("%s -> %s (type: %s -> %s)\n",
         b.Name, b.NameMapped, b.Type, b.TypeMapped)
 }
+
+// Semantic validation
+valResult := api.Validate(source)
+if valResult.Valid {
+    fmt.Println("Shader is valid!")
+} else {
+    for _, d := range valResult.Diagnostics {
+        fmt.Printf("%d:%d: %s: %s\n",
+            d.Line, d.Column, d.Severity, d.Message)
+    }
+}
+
+// Validation with options
+valResult := api.ValidateWithOptions(source, api.ValidateOptions{
+    StrictMode: true,  // Treat warnings as errors
+    DiagnosticFilters: map[string]string{
+        "derivative_uniformity": "off",  // Disable specific warning
+    },
+})
 ```
 
 #### Source Maps in Go
@@ -537,6 +610,38 @@ if (err == 0) {
 
 miniray_free(code);
 miniray_free(json);
+```
+
+#### Validation
+
+```c
+char* json = NULL;
+int json_len = 0;
+
+// Options as JSON (optional)
+const char* options = "{\"strictMode\":true}";
+
+int err = miniray_validate(
+    source, strlen(source),
+    (char*)options, strlen(options),  // or NULL, 0 for defaults
+    &json, &json_len
+);
+
+if (err == 0) {
+    // json contains: {"valid":true/false,"diagnostics":[...],"errorCount":N,"warningCount":N}
+    printf("Validation: %.*s\n", json_len, json);
+}
+miniray_free(json);
+```
+
+**Validation options:**
+```json
+{
+  "strictMode": true,
+  "diagnosticFilters": {
+    "derivative_uniformity": "off"
+  }
+}
 ```
 
 #### Error Codes

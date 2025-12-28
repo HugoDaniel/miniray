@@ -60,7 +60,7 @@ console.log(result.code);
 
 ### `initialize(options)`
 
-Initialize the WASM module. Must be called before `minify()` or `reflect()`.
+Initialize the WASM module. Must be called before `minify()`, `reflect()`, or `validate()`.
 
 ```typescript
 interface InitializeOptions {
@@ -169,6 +169,76 @@ Memory layouts follow the WGSL specification:
 - `vec3` has alignment=16 but size=12
 - Struct members are aligned to their natural alignment
 - Struct size is rounded up to struct alignment
+
+### `validate(source, options?)`
+
+Validate WGSL source for semantic errors, type mismatches, and uniformity violations.
+
+```typescript
+interface ValidateOptions {
+  strictMode?: boolean;                                    // Treat warnings as errors
+  diagnosticFilters?: Record<string, 'error' | 'warning' | 'info' | 'off'>;
+}
+
+interface ValidateResult {
+  valid: boolean;              // true if no errors
+  diagnostics: DiagnosticInfo[];
+  errorCount: number;
+  warningCount: number;
+}
+
+interface DiagnosticInfo {
+  severity: 'error' | 'warning' | 'info' | 'note';
+  code?: string;               // e.g., "E0200"
+  message: string;
+  line: number;                // 1-based
+  column: number;              // 1-based
+  endLine?: number;
+  endColumn?: number;
+  specRef?: string;            // WGSL spec reference
+}
+```
+
+**Example:**
+
+```javascript
+const result = validate(`
+  fn foo() -> f32 {
+    var x: i32 = 1;
+    return x;  // Error: returning i32 from f32 function
+  }
+`);
+
+console.log(result.valid);  // false
+console.log(result.errorCount);  // 1
+console.log(result.diagnostics[0]);
+// {
+//   severity: "error",
+//   code: "E0200",
+//   message: "cannot return 'i32' from function returning 'f32'",
+//   line: 4,
+//   column: 5
+// }
+```
+
+**With options:**
+
+```javascript
+const result = validate(source, {
+  strictMode: true,  // Treat warnings as errors
+  diagnosticFilters: {
+    derivative_uniformity: 'off',  // Disable uniformity warnings
+  },
+});
+```
+
+**Validation checks:**
+- Type mismatches (assignments, returns, function calls)
+- Undefined symbols (variables, functions, types)
+- Invalid operations (operators, indexing, member access)
+- Entry point requirements
+- Uniformity analysis (textureSample, derivatives)
+- WGSL spec compliance
 
 ### `isInitialized()`
 

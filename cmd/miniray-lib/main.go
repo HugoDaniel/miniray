@@ -1,4 +1,4 @@
-// Package main provides a C-callable static library for WGSL minification and reflection.
+// Package main provides a C-callable static library for WGSL minification, reflection, and validation.
 //
 // This is built with -buildmode=c-archive to produce libminiray.a
 // that can be linked into Zig/C/Rust programs.
@@ -13,6 +13,7 @@
 //	miniray_minify(source, source_len, options_json, options_len, out_code, out_code_len, out_json, out_json_len) -> error_code
 //	miniray_reflect(source, source_len, out_json, out_len) -> error_code
 //	miniray_minify_and_reflect(source, source_len, options_json, options_len, out_code, out_code_len, out_json, out_json_len) -> error_code
+//	miniray_validate(source, source_len, options_json, options_len, out_json, out_json_len) -> error_code
 //	miniray_free(ptr) -> void
 //	miniray_version() -> *char
 package main
@@ -25,8 +26,11 @@ import (
 	"encoding/json"
 	"unsafe"
 
+	"github.com/HugoDaniel/miniray/internal/diagnostic"
 	"github.com/HugoDaniel/miniray/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/parser"
 	"github.com/HugoDaniel/miniray/internal/reflect"
+	"github.com/HugoDaniel/miniray/internal/validator"
 )
 
 // Version should match the release version
@@ -272,6 +276,162 @@ func miniray_free(ptr *C.char) {
 //export miniray_version
 func miniray_version() *C.char {
 	return C.CString(version)
+}
+
+// ValidateOptions mirrors the Go API validation options for JSON parsing
+type ValidateOptions struct {
+	StrictMode        bool              `json:"strictMode"`
+	DiagnosticFilters map[string]string `json:"diagnosticFilters"`
+}
+
+// DiagnosticInfo is a single validation diagnostic
+type DiagnosticInfo struct {
+	Severity  string `json:"severity"`
+	Code      string `json:"code,omitempty"`
+	Message   string `json:"message"`
+	Line      int    `json:"line"`
+	Column    int    `json:"column"`
+	EndLine   int    `json:"endLine,omitempty"`
+	EndColumn int    `json:"endColumn,omitempty"`
+	SpecRef   string `json:"specRef,omitempty"`
+}
+
+// ValidateResult is the JSON result structure for validation
+type ValidateResult struct {
+	Valid        bool             `json:"valid"`
+	Diagnostics  []DiagnosticInfo `json:"diagnostics"`
+	ErrorCount   int              `json:"errorCount"`
+	WarningCount int              `json:"warningCount"`
+}
+
+// miniray_validate validates WGSL source code.
+//
+// Parameters:
+//   - source: pointer to WGSL source code (UTF-8)
+//   - source_len: length of source in bytes
+//   - options_json: pointer to JSON options (can be NULL for defaults)
+//   - options_len: length of options JSON
+//   - out_json: pointer to receive JSON result (caller must free with miniray_free)
+//   - out_json_len: pointer to receive JSON length
+//
+// Returns:
+//   - 0 on success
+//   - non-zero error code on failure
+//
+//export miniray_validate
+func miniray_validate(
+	source *C.char, source_len C.int,
+	options_json *C.char, options_len C.int,
+	out_json **C.char, out_json_len *C.int,
+) C.int {
+	if source == nil || out_json == nil || out_json_len == nil {
+		return MINIRAY_ERR_NULL_INPUT
+	}
+
+	goSource := C.GoStringN(source, source_len)
+
+	// Parse options
+	var opts ValidateOptions
+	if options_json != nil && options_len > 0 {
+		optStr := C.GoStringN(options_json, options_len)
+		if err := json.Unmarshal([]byte(optStr), &opts); err != nil {
+			return MINIRAY_ERR_JSON_DECODE
+		}
+	}
+
+	// Parse the source
+	p := parser.New(goSource)
+	module, parseErrors := p.Parse()
+
+	// Convert diagnostic filters
+	var filters *diagnostic.DiagnosticFilter
+	if len(opts.DiagnosticFilters) > 0 {
+		filters = diagnostic.NewDiagnosticFilter()
+		for rule, severity := range opts.DiagnosticFilters {
+			switch severity {
+			case "off":
+				filters.DisableRule(rule)
+			case "error":
+				filters.SetRule(rule, diagnostic.Error)
+			case "warning":
+				filters.SetRule(rule, diagnostic.Warning)
+			case "info":
+				filters.SetRule(rule, diagnostic.Info)
+			}
+		}
+	}
+
+	// Initialize result
+	result := ValidateResult{
+		Valid:       true,
+		Diagnostics: make([]DiagnosticInfo, 0),
+	}
+
+	// Add parse errors
+	for _, e := range parseErrors {
+		result.Diagnostics = append(result.Diagnostics, DiagnosticInfo{
+			Severity: "error",
+			Code:     "E0001",
+			Message:  e.Message,
+			Line:     e.Line,
+			Column:   e.Column,
+		})
+		result.ErrorCount++
+		result.Valid = false
+	}
+
+	// If parsing succeeded, run semantic validation
+	if len(parseErrors) == 0 {
+		validatorResult := validator.Validate(module, validator.Options{
+			StrictMode:        opts.StrictMode,
+			DiagnosticFilters: filters,
+		})
+
+		// Convert diagnostics
+		for _, d := range validatorResult.Diagnostics.Diagnostics() {
+			severity := "error"
+			switch d.Severity {
+			case diagnostic.Error:
+				severity = "error"
+				result.ErrorCount++
+			case diagnostic.Warning:
+				severity = "warning"
+				result.WarningCount++
+			case diagnostic.Info:
+				severity = "info"
+			case diagnostic.Note:
+				severity = "note"
+			}
+
+			diag := DiagnosticInfo{
+				Severity: severity,
+				Code:     d.Code,
+				Message:  d.Message,
+				Line:     d.Range.Start.Line,
+				Column:   d.Range.Start.Column,
+			}
+			if d.Range.End.Line > 0 {
+				diag.EndLine = d.Range.End.Line
+				diag.EndColumn = d.Range.End.Column
+			}
+			if d.SpecRef != "" {
+				diag.SpecRef = d.SpecRef
+			}
+			result.Diagnostics = append(result.Diagnostics, diag)
+		}
+
+		result.Valid = !validatorResult.Diagnostics.HasErrors()
+	}
+
+	// Encode result as JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return MINIRAY_ERR_JSON_ENCODE
+	}
+	*out_json = C.CString(string(jsonBytes))
+	*out_json_len = C.int(len(jsonBytes))
+
+	return MINIRAY_OK
 }
 
 // Required for c-archive build mode

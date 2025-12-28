@@ -8,8 +8,11 @@ import (
 	"encoding/json"
 	"syscall/js"
 
+	"github.com/HugoDaniel/miniray/internal/diagnostic"
 	"github.com/HugoDaniel/miniray/internal/minifier"
+	"github.com/HugoDaniel/miniray/internal/parser"
 	"github.com/HugoDaniel/miniray/internal/reflect"
+	"github.com/HugoDaniel/miniray/internal/validator"
 )
 
 var version = "0.1.0"
@@ -30,9 +33,10 @@ type jsOptions struct {
 func main() {
 	// Export functions to JavaScript
 	js.Global().Set("__miniray", js.ValueOf(map[string]interface{}{
-		"minify":  js.FuncOf(minifyJS),
-		"reflect": js.FuncOf(reflectJS),
-		"version": version,
+		"minify":   js.FuncOf(minifyJS),
+		"reflect":  js.FuncOf(reflectJS),
+		"validate": js.FuncOf(validateJS),
+		"version":  version,
 	}))
 
 	// Keep the Go runtime alive
@@ -310,4 +314,142 @@ func convertEntryPointsToJS(entryPoints []reflect.EntryPointInfo) []interface{} 
 		result[i] = entry
 	}
 	return result
+}
+
+// jsValidateOptions mirrors the JavaScript validate options object.
+type jsValidateOptions struct {
+	StrictMode        *bool             `json:"strictMode"`
+	DiagnosticFilters map[string]string `json:"diagnosticFilters"`
+}
+
+// validateJS is the JavaScript-callable validate function.
+// Signature: __miniray.validate(source: string, options?: object) => object
+func validateJS(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return makeValidateError("validate requires at least 1 argument (source)")
+	}
+
+	source := args[0].String()
+
+	// Parse options
+	var opts jsValidateOptions
+	if len(args) > 1 && !args[1].IsUndefined() && !args[1].IsNull() {
+		jsonStr := js.Global().Get("JSON").Call("stringify", args[1]).String()
+		json.Unmarshal([]byte(jsonStr), &opts)
+	}
+
+	// Parse the source
+	p := parser.New(source)
+	module, parseErrors := p.Parse()
+
+	// Convert diagnostic filters
+	var filters *diagnostic.DiagnosticFilter
+	if len(opts.DiagnosticFilters) > 0 {
+		filters = diagnostic.NewDiagnosticFilter()
+		for rule, severity := range opts.DiagnosticFilters {
+			switch severity {
+			case "off":
+				filters.DisableRule(rule)
+			case "error":
+				filters.SetRule(rule, diagnostic.Error)
+			case "warning":
+				filters.SetRule(rule, diagnostic.Warning)
+			case "info":
+				filters.SetRule(rule, diagnostic.Info)
+			}
+		}
+	}
+
+	// Initialize result
+	diagnostics := make([]interface{}, 0)
+	errorCount := 0
+	warningCount := 0
+	valid := true
+
+	// Add parse errors
+	for _, e := range parseErrors {
+		diagnostics = append(diagnostics, map[string]interface{}{
+			"severity": "error",
+			"code":     "E0001",
+			"message":  e.Message,
+			"line":     e.Line,
+			"column":   e.Column,
+		})
+		errorCount++
+		valid = false
+	}
+
+	// If parsing succeeded, run semantic validation
+	if len(parseErrors) == 0 {
+		strictMode := false
+		if opts.StrictMode != nil {
+			strictMode = *opts.StrictMode
+		}
+
+		validatorResult := validator.Validate(module, validator.Options{
+			StrictMode:        strictMode,
+			DiagnosticFilters: filters,
+		})
+
+		// Convert diagnostics
+		for _, d := range validatorResult.Diagnostics.Diagnostics() {
+			severity := "error"
+			switch d.Severity {
+			case diagnostic.Error:
+				severity = "error"
+				errorCount++
+			case diagnostic.Warning:
+				severity = "warning"
+				warningCount++
+			case diagnostic.Info:
+				severity = "info"
+			case diagnostic.Note:
+				severity = "note"
+			}
+
+			diag := map[string]interface{}{
+				"severity": severity,
+				"message":  d.Message,
+				"line":     d.Range.Start.Line,
+				"column":   d.Range.Start.Column,
+			}
+			if d.Code != "" {
+				diag["code"] = d.Code
+			}
+			if d.Range.End.Line > 0 {
+				diag["endLine"] = d.Range.End.Line
+				diag["endColumn"] = d.Range.End.Column
+			}
+			if d.SpecRef != "" {
+				diag["specRef"] = d.SpecRef
+			}
+			diagnostics = append(diagnostics, diag)
+		}
+
+		valid = !validatorResult.Diagnostics.HasErrors()
+	}
+
+	return map[string]interface{}{
+		"valid":        valid,
+		"diagnostics":  diagnostics,
+		"errorCount":   errorCount,
+		"warningCount": warningCount,
+	}
+}
+
+// makeValidateError creates a validate result object with an error.
+func makeValidateError(msg string) interface{} {
+	return map[string]interface{}{
+		"valid": false,
+		"diagnostics": []interface{}{
+			map[string]interface{}{
+				"severity": "error",
+				"message":  msg,
+				"line":     0,
+				"column":   0,
+			},
+		},
+		"errorCount":   1,
+		"warningCount": 0,
+	}
 }

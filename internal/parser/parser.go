@@ -16,13 +16,15 @@ import (
 
 	"github.com/HugoDaniel/miniray/internal/ast"
 	"github.com/HugoDaniel/miniray/internal/lexer"
+	"github.com/HugoDaniel/miniray/internal/sourcemap"
 )
 
 // Parser parses WGSL source into an AST using a two-pass approach.
 type Parser struct {
-	source string
-	tokens []lexer.Token
-	pos    int
+	source    string
+	tokens    []lexer.Token
+	pos       int
+	lineIndex *sourcemap.LineIndex // For converting byte offsets to line/column
 
 	// Symbol table
 	symbols []ast.Symbol
@@ -81,6 +83,7 @@ func New(source string) *Parser {
 	return &Parser{
 		source:      source,
 		tokens:      tokens,
+		lineIndex:   sourcemap.NewLineIndex(source),
 		symbols:     make([]ast.Symbol, 0),
 		scope:       ast.NewScope(nil),
 		constValues: make(map[ast.Ref]ConstValue),
@@ -155,9 +158,12 @@ func (p *Parser) match(kind lexer.TokenKind) bool {
 
 func (p *Parser) error(msg string) {
 	tok := p.current()
+	line, col := p.lineIndex.ByteOffsetToLineColumn(tok.Start)
 	p.errors = append(p.errors, ParseError{
 		Message: msg,
 		Pos:     tok.Start,
+		Line:    line + 1, // Convert to 1-based
+		Column:  col + 1,  // Convert to 1-based
 	})
 }
 

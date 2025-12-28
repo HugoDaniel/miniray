@@ -203,6 +203,66 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
     console.log(`\n${passed} passed, ${failed} failed`);
 
+    // Test validate function
+    console.log('\n--- Validate API Tests ---');
+    const validateTests = [
+        {
+            name: 'Validate valid shader',
+            input: `fn foo() -> f32 { return 1.0; }`,
+            options: {},
+            check: (r) => {
+                return r.valid === true && r.errorCount === 0;
+            }
+        },
+        {
+            name: 'Validate type mismatch',
+            input: `fn foo() -> f32 { var x: i32 = 1; return x; }`,  // i32 var returned from f32 function
+            options: {},
+            check: (r) => {
+                return r.valid === false && r.errorCount > 0 &&
+                       r.diagnostics.some(d => d.severity === 'error');
+            }
+        },
+        {
+            name: 'Validate undefined variable',
+            input: `fn foo() -> f32 { return bar; }`,
+            options: {},
+            check: (r) => {
+                return r.valid === false && r.errorCount > 0;
+            }
+        },
+        {
+            name: 'Validate with strictMode',
+            input: `fn foo() { }`,  // Valid shader
+            options: { strictMode: true },
+            check: (r) => {
+                return r.valid === true;  // Should still be valid
+            }
+        }
+    ];
+
+    for (const test of validateTests) {
+        try {
+            const result = globalThis.__miniray.validate(test.input, test.options);
+            const ok = test.check(result);
+
+            if (ok) {
+                console.log(`✓ ${test.name}`);
+                passed++;
+            } else {
+                console.log(`✗ ${test.name}`);
+                console.log(`  Result:`, JSON.stringify(result, null, 2));
+                failed++;
+            }
+        } catch (err) {
+            console.log(`✗ ${test.name}`);
+            console.log(`  Error: ${err.message}`);
+            failed++;
+        }
+    }
+
+    console.log(`\n${passed} passed, ${failed} failed`);
+
     // Show example output
     console.log('\n--- Example Output ---');
     const example = `@group(0) @binding(0) var<uniform> uniforms: f32;

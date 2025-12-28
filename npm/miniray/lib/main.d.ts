@@ -152,6 +152,60 @@ export interface EntryPointInfo {
 }
 
 /**
+ * Options for WGSL validation.
+ */
+export interface ValidateOptions {
+  /**
+   * Treat warnings as errors.
+   * @default false
+   */
+  strictMode?: boolean;
+
+  /**
+   * Map of diagnostic rule names to their severity override.
+   * Rules: "derivative_uniformity", "subgroup_uniformity"
+   * Severities: "error", "warning", "info", "off"
+   */
+  diagnosticFilters?: Record<string, "error" | "warning" | "info" | "off">;
+}
+
+/**
+ * A single validation diagnostic message.
+ */
+export interface DiagnosticInfo {
+  /** Severity: "error", "warning", "info", or "note" */
+  severity: "error" | "warning" | "info" | "note";
+  /** Error code (e.g., "E0200" for type mismatch) */
+  code?: string;
+  /** Human-readable error message */
+  message: string;
+  /** Line number (1-based) */
+  line: number;
+  /** Column number (1-based) */
+  column: number;
+  /** End line number (1-based), if available */
+  endLine?: number;
+  /** End column number (1-based), if available */
+  endColumn?: number;
+  /** Reference to WGSL spec section */
+  specRef?: string;
+}
+
+/**
+ * Result of WGSL validation.
+ */
+export interface ValidateResult {
+  /** Whether the shader is valid (no errors) */
+  valid: boolean;
+  /** All validation diagnostics */
+  diagnostics: DiagnosticInfo[];
+  /** Number of error-level diagnostics */
+  errorCount: number;
+  /** Number of warning-level diagnostics */
+  warningCount: number;
+}
+
+/**
  * Options for initializing the WASM module.
  */
 export interface InitializeOptions {
@@ -188,6 +242,15 @@ export function minify(source: string, options?: MinifyOptions): MinifyResult;
  * @returns Reflection result with bindings, structs, entryPoints, and errors
  */
 export function reflect(source: string): ReflectResult;
+
+/**
+ * Validate WGSL source code for errors and warnings.
+ * Performs full semantic validation compatible with the Dawn Tint compiler.
+ * @param source - WGSL source code to validate
+ * @param options - Validation options
+ * @returns Validation result with valid flag, diagnostics, and counts
+ */
+export function validate(source: string, options?: ValidateOptions): ValidateResult;
 
 /**
  * Check if the WASM module is initialized.

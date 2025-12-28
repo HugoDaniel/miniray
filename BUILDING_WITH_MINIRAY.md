@@ -37,11 +37,13 @@ cat input.wgsl | miniray > output.wgsl     # Pipe
 miniray --config myconfig.json input.wgsl  # With config
 miniray reflect input.wgsl                 # Reflect to JSON
 miniray reflect --compact input.wgsl       # Compact JSON
+miniray validate input.wgsl                # Validate shader
+miniray validate --json input.wgsl         # Validation JSON
 ```
 
 ### Node.js/Browser (WASM)
 ```javascript
-import { initialize, minify, reflect, minifyAndReflect } from 'miniray';
+import { initialize, minify, reflect, validate, minifyAndReflect } from 'miniray';
 await initialize();  // Required once, auto-finds WASM in Node
 
 // Minification
@@ -51,6 +53,10 @@ const result = minify(source, options);
 // Reflection (extract bindings, structs, entry points)
 const info = reflect(source);
 // info: { bindings[], structs{}, entryPoints[], errors[] }
+
+// Semantic validation
+const valid = validate(source, { strictMode: false });
+// valid: { valid, diagnostics[], errorCount, warningCount }
 
 // Combined minify + reflect (with minified names)
 const combined = minifyAndReflect(source, options);
@@ -65,6 +71,8 @@ result := api.MinifyWhitespaceOnly(source)      // Safe mode
 result := api.MinifyWithOptions(source, opts)   // Custom
 info := api.Reflect(source)                     // Shader reflection
 combined := api.MinifyAndReflect(source)        // Minify + reflect with mapped names
+valid := api.Validate(source)                   // Semantic validation
+valid := api.ValidateWithOptions(source, opts)  // Validation with options
 ```
 
 ### C Library (FFI)
@@ -80,6 +88,10 @@ int err = miniray_minify(source, strlen(source), NULL, 0,
 
 // Reflection only
 err = miniray_reflect(source, strlen(source), &json, &json_len);
+
+// Semantic validation
+err = miniray_validate(source, strlen(source), NULL, 0, &json, &json_len);
+// json: {"valid":true/false,"diagnostics":[...],"errorCount":N,"warningCount":N}
 
 // Combined minify + reflect (mapped names included)
 err = miniray_minify_and_reflect(source, strlen(source), NULL, 0,
@@ -325,7 +337,41 @@ for (const ep of info.entryPoints) {
 }
 ```
 
-### Pattern 12: C/Zig FFI Integration
+### Pattern 12: Pre-Minification Validation
+```javascript
+// Validate before minifying to catch semantic errors
+const validation = validate(source);
+if (!validation.valid) {
+  for (const d of validation.diagnostics) {
+    console.error(`${d.line}:${d.column}: ${d.severity}: ${d.message}`);
+  }
+  throw new Error('Shader validation failed');
+}
+
+// Safe to minify
+const result = minify(source);
+```
+
+### Pattern 13: Suppress Specific Warnings
+```javascript
+// Disable uniformity warnings for shaders that intentionally violate
+const result = validate(source, {
+  diagnosticFilters: {
+    derivative_uniformity: 'off',  // Disable derivative uniformity checks
+  }
+});
+```
+
+### Pattern 14: Strict Validation Mode
+```javascript
+// Treat all warnings as errors
+const result = validate(source, { strictMode: true });
+if (!result.valid) {
+  // Both errors AND warnings will cause valid=false
+}
+```
+
+### Pattern 15: C/Zig FFI Integration
 ```c
 // Build: make lib
 // Link: gcc -o myapp myapp.c -L./build -lminiray -lpthread -lm

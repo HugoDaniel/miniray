@@ -58,6 +58,7 @@ import (
 	"github.com/HugoDaniel/miniray/internal/config"
 	"github.com/HugoDaniel/miniray/internal/minifier"
 	"github.com/HugoDaniel/miniray/internal/reflect"
+	"github.com/HugoDaniel/miniray/pkg/api"
 )
 
 var (
@@ -67,12 +68,21 @@ var (
 
 func main() {
 	// Check for subcommands
-	if len(os.Args) > 1 && os.Args[1] == "reflect" {
-		if err := runReflect(os.Args[2:]); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "reflect":
+			if err := runReflect(os.Args[2:]); err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "validate":
+			if err := runValidate(os.Args[2:]); err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+			return
 		}
-		return
 	}
 
 	if err := run(); err != nil {
@@ -456,4 +466,206 @@ func runReflect(args []string) error {
 	}
 
 	return nil
+}
+
+// runValidate handles the "validate" subcommand.
+func runValidate(args []string) error {
+	fs := flag.NewFlagSet("validate", flag.ExitOnError)
+
+	var (
+		outputFile  string
+		format      string
+		strict      bool
+		showHelp    bool
+		showVersion bool
+	)
+
+	fs.StringVar(&outputFile, "o", "", "Write output to `file`")
+	fs.StringVar(&format, "format", "text", "Output format: text, json, or sarif")
+	fs.BoolVar(&strict, "strict", false, "Treat warnings as errors")
+	fs.BoolVar(&showHelp, "help", false, "Print help and exit")
+	fs.BoolVar(&showVersion, "version", false, "Print version and exit")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "miniray validate - WGSL Shader Validation v%s\n\n", version)
+		fmt.Fprintf(os.Stderr, "Validate WGSL source code for semantic correctness.\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: miniray validate [options] <input.wgsl>\n")
+		fmt.Fprintf(os.Stderr, "       cat input.wgsl | miniray validate [options]\n\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		fs.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nFormats:\n")
+		fmt.Fprintf(os.Stderr, "  text   Human-readable output (default)\n")
+		fmt.Fprintf(os.Stderr, "  json   JSON array of diagnostics\n")
+		fmt.Fprintf(os.Stderr, "  sarif  SARIF format for IDE integration\n")
+		fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		fmt.Fprintf(os.Stderr, "  miniray validate shader.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  miniray validate --strict shader.wgsl\n")
+		fmt.Fprintf(os.Stderr, "  miniray validate --format json shader.wgsl\n")
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if showHelp {
+		fs.Usage()
+		return nil
+	}
+
+	if showVersion {
+		fmt.Printf("miniray validate v%s (%s)\n", version, commit)
+		return nil
+	}
+
+	// Read input
+	var source []byte
+	var inputFile string
+	var err error
+
+	if fs.NArg() > 0 {
+		inputFile = fs.Arg(0)
+		source, err = os.ReadFile(inputFile)
+		if err != nil {
+			return fmt.Errorf("reading input: %w", err)
+		}
+	} else {
+		// Check if stdin is a pipe
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			fs.Usage()
+			return fmt.Errorf("no input file specified")
+		}
+		inputFile = "<stdin>"
+		source, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("reading stdin: %w", err)
+		}
+	}
+
+	// Run validation
+	result := api.ValidateWithOptions(string(source), api.ValidateOptions{
+		StrictMode: strict,
+	})
+
+	// Prepare output
+	var output io.Writer = os.Stdout
+	if outputFile != "" {
+		f, err := os.Create(outputFile)
+		if err != nil {
+			return fmt.Errorf("creating output file: %w", err)
+		}
+		defer f.Close()
+		output = f
+	}
+
+	// Format and write output
+	switch format {
+	case "json":
+		jsonBytes, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return fmt.Errorf("encoding JSON: %w", err)
+		}
+		fmt.Fprintln(output, string(jsonBytes))
+
+	case "sarif":
+		sarif := formatSARIF(inputFile, result)
+		jsonBytes, err := json.MarshalIndent(sarif, "", "  ")
+		if err != nil {
+			return fmt.Errorf("encoding SARIF: %w", err)
+		}
+		fmt.Fprintln(output, string(jsonBytes))
+
+	case "text":
+		fallthrough
+	default:
+		formatTextDiagnostics(output, inputFile, result)
+	}
+
+	// Return error if validation failed
+	if !result.Valid {
+		return fmt.Errorf("validation failed with %d error(s)", result.ErrorCount)
+	}
+
+	return nil
+}
+
+// formatTextDiagnostics formats diagnostics as human-readable text.
+func formatTextDiagnostics(w io.Writer, file string, result api.ValidateResult) {
+	if result.Valid && len(result.Diagnostics) == 0 {
+		fmt.Fprintf(w, "%s: valid\n", file)
+		return
+	}
+
+	for _, d := range result.Diagnostics {
+		// Format: file:line:col: severity: message [code]
+		fmt.Fprintf(w, "%s:%d:%d: %s: %s",
+			file, d.Line, d.Column, d.Severity, d.Message)
+		if d.Code != "" {
+			fmt.Fprintf(w, " [%s]", d.Code)
+		}
+		if d.SpecRef != "" {
+			fmt.Fprintf(w, " (WGSL spec section %s)", d.SpecRef)
+		}
+		fmt.Fprintln(w)
+	}
+
+	// Summary
+	fmt.Fprintf(w, "\n%d error(s), %d warning(s)\n", result.ErrorCount, result.WarningCount)
+}
+
+// formatSARIF formats diagnostics in SARIF format for IDE integration.
+func formatSARIF(file string, result api.ValidateResult) map[string]interface{} {
+	results := make([]map[string]interface{}, 0, len(result.Diagnostics))
+
+	for _, d := range result.Diagnostics {
+		level := "error"
+		switch d.Severity {
+		case "warning":
+			level = "warning"
+		case "info", "note":
+			level = "note"
+		}
+
+		r := map[string]interface{}{
+			"ruleId":  d.Code,
+			"level":   level,
+			"message": map[string]string{"text": d.Message},
+			"locations": []map[string]interface{}{
+				{
+					"physicalLocation": map[string]interface{}{
+						"artifactLocation": map[string]string{"uri": file},
+						"region": map[string]int{
+							"startLine":   d.Line,
+							"startColumn": d.Column,
+							"endLine":     d.EndLine,
+							"endColumn":   d.EndColumn,
+						},
+					},
+				},
+			},
+		}
+
+		if d.SpecRef != "" {
+			r["helpUri"] = "https://www.w3.org/TR/WGSL/#" + d.SpecRef
+		}
+
+		results = append(results, r)
+	}
+
+	return map[string]interface{}{
+		"$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+		"version": "2.1.0",
+		"runs": []map[string]interface{}{
+			{
+				"tool": map[string]interface{}{
+					"driver": map[string]interface{}{
+						"name":           "miniray",
+						"version":        version,
+						"informationUri": "https://github.com/HugoDaniel/miniray",
+					},
+				},
+				"results": results,
+			},
+		},
+	}
 }

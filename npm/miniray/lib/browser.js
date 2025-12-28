@@ -167,6 +167,26 @@
   }
 
   /**
+   * Validate WGSL source code.
+   * @param {string} source - WGSL source code
+   * @param {Object} [options] - Validation options
+   * @param {boolean} [options.strictMode] - Treat warnings as errors
+   * @param {Object} [options.diagnosticFilters] - Map of rule name to severity
+   * @returns {Object} Validation result with valid, diagnostics, errorCount, warningCount
+   */
+  function validate(source, options) {
+    if (!_initialized) {
+      throw new Error('miniray not initialized. Call initialize() first.');
+    }
+
+    if (typeof source !== 'string') {
+      throw new Error('source must be a string');
+    }
+
+    return globalThis.__miniray.validate(source, options || {});
+  }
+
+  /**
    * Check if initialized.
    * @returns {boolean}
    */
@@ -189,6 +209,7 @@
     initialize: initialize,
     minify: minify,
     reflect: reflect,
+    validate: validate,
     isInitialized: isInitialized,
     get version() { return getVersion(); }
   };

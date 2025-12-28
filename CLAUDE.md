@@ -21,6 +21,8 @@ UPDATE_SNAPSHOTS=1 go test ./internal/minifier_tests/...  # Regenerate snapshots
 ./build/miniray shader.wgsl                    # Basic minification
 ./build/miniray --config configs/compute.toys.json shader.wgsl  # With config
 echo 'fn main() {}' | ./build/miniray          # From stdin
+./build/miniray validate shader.wgsl           # Semantic validation
+./build/miniray validate --json shader.wgsl    # JSON output with diagnostics
 
 # NPM package
 cd npm/miniray && node test.js            # Run JS tests
@@ -33,6 +35,10 @@ cd npm/miniray && npm pack --dry-run      # Check package contents
 Source → Lexer → Parser → AST → Minifier → Printer → Output
                            ↓
                        Renamer
+
+Source → Lexer → Parser → AST → Validator → Diagnostics
+                                    ↓
+                            Types + Builtins
 ```
 
 ### Package Structure
@@ -45,11 +51,16 @@ Source → Lexer → Parser → AST → Minifier → Printer → Output
 | `internal/printer` | Code generator with minification |
 | `internal/renamer` | Frequency-based identifier renaming |
 | `internal/reflect` | Shader reflection and WGSL memory layout computation |
+| `internal/validator` | Semantic validation (types, symbols, uniformity) |
+| `internal/types` | WGSL type system representation |
+| `internal/builtins` | Builtin function signatures and uniformity info |
+| `internal/diagnostic` | Diagnostic messages with codes and locations |
 | `internal/config` | JSON config file support |
 | `internal/minifier` | Orchestrates the pipeline |
 | `pkg/api` | Public Go API |
 | `cmd/miniray` | CLI |
 | `cmd/miniray-wasm` | WASM entry point |
+| `cmd/miniray-lib` | C static library (FFI) |
 | `npm/miniray` | NPM package |
 
 ### Key Design Decisions
@@ -108,6 +119,11 @@ If built-in types like `f32` are being renamed:
 - Golden file testing for minification output
 - Regenerate with `UPDATE_SNAPSHOTS=1`
 
+**Validator tests** (`internal/validator_tests/`):
+- Semantic validation test cases
+- Tests for type errors, symbol resolution, uniformity
+- Run with `go test ./internal/validator_tests/...`
+
 ## WGSL Specifics
 
 **Reserved Words**: 120+ words reserved for future use (see `internal/lexer/lexer.go`)
@@ -146,6 +162,9 @@ await initialize({ wasmURL: '/miniray.wasm' });
 | `internal/printer/printer.go` | ~1000 | Code generation |
 | `internal/renamer/renamer.go` | ~370 | Name assignment algorithm |
 | `internal/minifier/minifier.go` | ~450 | Pipeline orchestration |
+| `internal/validator/validator.go` | ~1800 | Semantic validation pass |
+| `internal/types/types.go` | ~600 | WGSL type system |
+| `internal/builtins/builtins.go` | ~800 | Builtin function table |
 | `configs/compute.toys.json` | ~60 | Example platform config |
 
 ## Gotchas
@@ -156,6 +175,6 @@ await initialize({ wasmURL: '/miniray.wasm' });
 
 3. **Snapshot updates**: Tests fail if output changes. Use `UPDATE_SNAPSHOTS=1` to accept changes
 
-4. **wasm_exec.js**: Must match Go version. Copy from `$(go env GOROOT)/misc/wasm/wasm_exec.js`
+4. **wasm_exec.js**: Must match Go version. Copy from `$(go env GOROOT)/lib/wasm/wasm_exec.js` (Go 1.25+) or `$(go env GOROOT)/misc/wasm/wasm_exec.js` (older)
 
 5. **keepNames for struct fields**: Not needed - fields accessed via `.` operator, not as identifiers

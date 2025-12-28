@@ -139,6 +139,43 @@ export function minify(source, options) {
 }
 
 /**
+ * Reflect WGSL source to extract binding and struct information.
+ * @param {string} source - WGSL source code
+ * @returns {Object} Reflection result with bindings, structs, entryPoints, and errors
+ */
+export function reflect(source) {
+  if (!_initialized) {
+    throw new Error('miniray not initialized. Call initialize() first.');
+  }
+
+  if (typeof source !== 'string') {
+    throw new Error('source must be a string');
+  }
+
+  return globalThis.__miniray.reflect(source);
+}
+
+/**
+ * Validate WGSL source code.
+ * @param {string} source - WGSL source code
+ * @param {Object} [options] - Validation options
+ * @param {boolean} [options.strictMode] - Treat warnings as errors
+ * @param {Object} [options.diagnosticFilters] - Map of rule name to severity
+ * @returns {Object} Validation result with valid, diagnostics, errorCount, warningCount
+ */
+export function validate(source, options) {
+  if (!_initialized) {
+    throw new Error('miniray not initialized. Call initialize() first.');
+  }
+
+  if (typeof source !== 'string') {
+    throw new Error('source must be a string');
+  }
+
+  return globalThis.__miniray.validate(source, options || {});
+}
+
+/**
  * Check if initialized.
  * @returns {boolean}
  */
@@ -163,4 +200,4 @@ export const version = (() => {
 })();
 
 // Default export for convenience
-export default { initialize, minify, isInitialized, version };
+export default { initialize, minify, reflect, validate, isInitialized, version };
