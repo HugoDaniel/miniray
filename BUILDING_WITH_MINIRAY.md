@@ -67,6 +67,30 @@ info := api.Reflect(source)                     // Shader reflection
 combined := api.MinifyAndReflect(source)        // Minify + reflect with mapped names
 ```
 
+### C Library (FFI)
+```c
+#include "libminiray.h"
+
+char *code, *json;
+int code_len, json_len;
+
+// Minify with default options
+int err = miniray_minify(source, strlen(source), NULL, 0,
+                         &code, &code_len, &json, &json_len);
+
+// Reflection only
+err = miniray_reflect(source, strlen(source), &json, &json_len);
+
+// Combined minify + reflect (mapped names included)
+err = miniray_minify_and_reflect(source, strlen(source), NULL, 0,
+                                  &code, &code_len, &json, &json_len);
+
+miniray_free(code);
+miniray_free(json);
+```
+
+Build: `make lib` → `build/libminiray.a` + `build/libminiray.h`
+
 ## Options Reference
 
 | Option | Default | Effect | When to Change |
@@ -301,6 +325,59 @@ for (const ep of info.entryPoints) {
 }
 ```
 
+### Pattern 12: C/Zig FFI Integration
+```c
+// Build: make lib
+// Link: gcc -o myapp myapp.c -L./build -lminiray -lpthread -lm
+
+#include "libminiray.h"
+
+const char* source = "@vertex fn main() -> @builtin(position) vec4f { return vec4f(0.); }";
+char *code = NULL, *json = NULL;
+int code_len = 0, json_len = 0;
+
+// Use custom options via JSON
+const char* opts = "{\"minifyWhitespace\":true,\"minifyIdentifiers\":true}";
+int err = miniray_minify(
+    (char*)source, strlen(source),
+    (char*)opts, strlen(opts),
+    &code, &code_len,
+    &json, &json_len
+);
+
+if (err == 0) {
+    printf("Minified: %.*s\n", code_len, code);
+    miniray_free(code);
+    miniray_free(json);
+}
+```
+
+```zig
+// Zig FFI example
+const c = @cImport({
+    @cInclude("libminiray.h");
+});
+
+pub fn minifyShader(source: []const u8) ![]const u8 {
+    var code: [*c]u8 = null;
+    var code_len: c_int = 0;
+    var json: [*c]u8 = null;
+    var json_len: c_int = 0;
+
+    const err = c.miniray_minify(
+        @ptrCast(source.ptr), @intCast(source.len),
+        null, 0,
+        &code, &code_len,
+        &json, &json_len
+    );
+
+    if (err != 0) return error.MinifyFailed;
+    defer c.miniray_free(json);
+
+    return code[0..@intCast(code_len)];
+}
+```
+
 ## Gotchas & Edge Cases
 
 ### 1. Struct Fields Are Never Renamed
@@ -403,7 +480,10 @@ Minifier returns original source on parse errors, never partial/corrupted output
 ```bash
 make build        # Native binary: build/miniray
 make build-wasm   # WASM: build/miniray.wasm (~3.6MB)
+make lib          # C static library: build/libminiray.a + libminiray.h
 make build-all    # All platforms + WASM
 ```
 
 WASM requires `wasm_exec.js` from Go toolchain (included in npm package).
+
+C library requires CGO. Link with: `-lminiray -lpthread -lm`

@@ -431,6 +431,148 @@ result := api.MinifyWithOptions(source, api.MinifyOptions{
 fmt.Println(result.SourceMap)
 ```
 
+### C Library (FFI)
+
+Build a static library for integration with C, Zig, Rust, or other languages:
+
+```bash
+make lib
+# Creates: build/libminiray.a and build/libminiray.h
+```
+
+#### C Example
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include "libminiray.h"
+
+int main() {
+    const char* source =
+        "struct Data { value: f32 }\n"
+        "@group(0) @binding(0) var<uniform> data: Data;\n"
+        "@fragment fn main() -> @location(0) vec4f {\n"
+        "    return vec4f(data.value);\n"
+        "}\n";
+
+    char* code = NULL;
+    int code_len = 0;
+    char* json = NULL;
+    int json_len = 0;
+
+    // Minify with default options (pass NULL for options)
+    int err = miniray_minify(
+        (char*)source, strlen(source),
+        NULL, 0,           // options_json, options_len
+        &code, &code_len,
+        &json, &json_len   // NULL to skip JSON stats
+    );
+
+    if (err == 0) {
+        printf("Minified (%d bytes):\n%.*s\n", code_len, code_len, code);
+    }
+
+    // Free allocated memory
+    miniray_free(code);
+    miniray_free(json);
+
+    return err;
+}
+```
+
+Compile with:
+```bash
+gcc -o example example.c -L./build -lminiray -lpthread -lm
+```
+
+#### Custom Options
+
+```c
+// Options as JSON string
+const char* options = "{\"minifyWhitespace\":true,\"minifyIdentifiers\":true}";
+
+int err = miniray_minify(
+    source, source_len,
+    (char*)options, strlen(options),
+    &code, &code_len,
+    NULL, NULL  // Skip JSON result
+);
+```
+
+#### Reflection
+
+```c
+char* json = NULL;
+int json_len = 0;
+
+int err = miniray_reflect(source, strlen(source), &json, &json_len);
+if (err == 0) {
+    // json contains: {"bindings":[...],"structs":{...},"entryPoints":[...]}
+    printf("Reflection: %.*s\n", json_len, json);
+}
+miniray_free(json);
+```
+
+#### Combined Minify + Reflect
+
+Get minified code with reflection that includes mapped (minified) names:
+
+```c
+char* code = NULL;
+int code_len = 0;
+char* json = NULL;
+int json_len = 0;
+
+int err = miniray_minify_and_reflect(
+    source, strlen(source),
+    NULL, 0,  // default options
+    &code, &code_len,
+    &json, &json_len
+);
+
+if (err == 0) {
+    // code = minified WGSL
+    // json = {"code":"...","reflect":{"bindings":[{"name":"data","nameMapped":"data",...}],...}}
+}
+
+miniray_free(code);
+miniray_free(json);
+```
+
+#### Error Codes
+
+| Code | Constant | Description |
+|------|----------|-------------|
+| 0 | `MINIRAY_OK` | Success |
+| 1 | `MINIRAY_ERR_JSON_ENCODE` | Failed to encode JSON result |
+| 2 | `MINIRAY_ERR_NULL_INPUT` | NULL pointer passed for required parameter |
+| 3 | `MINIRAY_ERR_JSON_DECODE` | Failed to parse options JSON |
+
+#### Zig Example
+
+```zig
+const c = @cImport({
+    @cInclude("libminiray.h");
+});
+
+pub fn minify(source: []const u8) ![]const u8 {
+    var code: [*c]u8 = null;
+    var code_len: c_int = 0;
+
+    const err = c.miniray_minify(
+        @ptrCast(source.ptr), @intCast(source.len),
+        null, 0,
+        &code, &code_len,
+        null, null
+    );
+
+    if (err != 0) return error.MinifyFailed;
+    defer c.miniray_free(code);
+
+    return code[0..@intCast(code_len)];
+}
+```
+
 ## What Gets Minified
 
 ### Always Preserved
