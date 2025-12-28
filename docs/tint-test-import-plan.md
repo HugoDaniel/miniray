@@ -1,109 +1,104 @@
-# Dawn Tint Test Import Plan for Miniray Minification Testing
+# Dawn Tint Test Suite for Miniray
 
 ## Overview
 
-Import ~1,500 WGSL test files from Dawn Tint test suite to validate miniray minification correctness.
+Miniray uses ~1,500 WGSL test files from the Dawn Tint test suite to validate minification correctness. These tests verify that minified code parses correctly and passes semantic validation.
 
-**Source:** `~/Development/specs-llm/repositories/dawn/test/tint/`
-**Target:** `~/Development/miniray/testdata/tint/`
+**Source:** Dawn repository `test/tint/` directory
+**Target:** `testdata/tint/` (not committed, must be imported locally)
 
-## Test Categories to Import
+## Running the Tests
 
-| Priority | Category | Files | Purpose |
-|----------|----------|-------|---------|
-| 1 | expressions/binary | ~400 | Operator precedence, type coercion |
-| 2 | samples + benchmark | 14 | Real-world shader validation |
-| 3 | statements | 104 | Control flow preservation |
-| 4 | bug/tint | ~100 | Edge cases, regressions |
-| 5 | types | 84 | Type system integrity |
-| 6 | shadowing | 21 | Name resolution |
-| 7 | loops | 33 | Loop semantics |
-| 8 | var | 55 | Variable declarations |
-| 9 | identifiers | 20 | Identifier resolution |
-| 10 | out_of_order_decls | 10 | Declaration ordering |
+### 1. Import Test Files
 
-## Test Harness Design
+The test files must be imported from a local Dawn repository clone:
 
-### Semantic Preservation Test
+```bash
+# Clone Dawn if you haven't already
+git clone https://dawn.googlesource.com/dawn ~/Development/dawn
 
-For each test file:
-1. Parse original WGSL with miniray parser
-2. Skip if parse fails (some tests may use unsupported extensions)
-3. Minify with miniray (full options)
-4. Parse minified output
-5. Validate minified output passes semantic validation
-6. Compare key properties (entry points preserved, bindings intact)
+# Create testdata directory
+mkdir -p testdata/tint
 
-### Test File Structure
-
-```
-testdata/tint/
-├── expressions/
-│   └── binary/
-│       ├── add/
-│       ├── mul/
-│       └── ...
-├── statements/
-├── samples/
-├── benchmark/
-├── bug/
-├── types/
-├── shadowing/
-├── loops/
-├── var/
-├── identifiers/
-└── out_of_order_decls/
+# Import test categories
+cp -r ~/Development/dawn/test/tint/expressions testdata/tint/
+cp -r ~/Development/dawn/test/tint/statements testdata/tint/
+cp -r ~/Development/dawn/test/tint/bug/tint testdata/tint/bug/
+cp -r ~/Development/dawn/test/tint/types testdata/tint/
+cp -r ~/Development/dawn/test/tint/samples testdata/tint/
+cp -r ~/Development/dawn/test/tint/benchmark testdata/tint/
+cp -r ~/Development/dawn/test/tint/shadowing testdata/tint/
+cp -r ~/Development/dawn/test/tint/loops testdata/tint/
+cp -r ~/Development/dawn/test/tint/var testdata/tint/
+cp -r ~/Development/dawn/test/tint/identifiers testdata/tint/
+cp -r ~/Development/dawn/test/tint/out_of_order_decls testdata/tint/
 ```
 
-### Test Runner
+### 2. Run Tests
 
-Create `internal/minifier_tests/tint_test.go`:
-- Walk testdata/tint directory
-- For each .wgsl file:
-  - Parse → Minify → Parse again → Validate
-  - Report failures with file path and error
-- Track statistics (passed, failed, skipped)
+```bash
+# Run all Tint semantic preservation tests
+go test ./internal/minifier_tests/... -run TestTintSemanticPreservation -v
 
-## Implementation Steps
+# Quick summary (pass/fail counts only)
+go test ./internal/minifier_tests/... -run TestTintSemanticPreservation
 
-### Phase 1: Infrastructure
-- [ ] Create testdata/tint directory structure
-- [ ] Create test harness in internal/minifier_tests/tint_test.go
-- [ ] Add helper functions for semantic comparison
+# Run specific category
+go test ./internal/minifier_tests/... -run "TestTintSemanticPreservation/expressions" -v
+go test ./internal/minifier_tests/... -run "TestTintSemanticPreservation/bug" -v
+```
 
-### Phase 2: Import Priority 1-2 (expressions + samples)
-- [ ] Copy expressions/binary tests (~400 files)
-- [ ] Copy samples + benchmark tests (14 files)
-- [ ] Run tests, fix any minifier issues found
+### 3. Expected Output
 
-### Phase 3: Import Priority 3-5 (statements, bugs, types)
-- [ ] Copy statements tests (104 files)
-- [ ] Copy bug/tint tests (~100 files)
-- [ ] Copy types tests (84 files)
-- [ ] Run tests, fix issues
+```
+=== RUN   TestTintSemanticPreservation
+    tint_test.go:65: Tint tests: 1445 total, 572 passed, 0 failed, 0 skipped
+--- PASS: TestTintSemanticPreservation (1.50s)
+```
 
-### Phase 4: Import Priority 6-10 (remaining)
-- [ ] Copy shadowing tests (21 files)
-- [ ] Copy loops tests (33 files)
-- [ ] Copy var tests (55 files)
-- [ ] Copy identifiers tests (20 files)
-- [ ] Copy out_of_order_decls tests (10 files)
-- [ ] Final test run
+Tests are skipped (not failed) when:
+- File uses unsupported WGSL features (f16, chromium extensions)
+- Original file has parse errors (intentional test cases)
+- Original file has validation errors (intentional test cases)
+- Validator panics on complex constructs
 
-### Phase 5: Subset of builtins
-- [ ] Select ~100 representative builtin tests
-- [ ] Copy and run
+## Test Categories
 
-## Success Criteria
+| Category | Files | Purpose |
+|----------|-------|---------|
+| expressions/binary | ~950 | Operator precedence, type coercion |
+| statements | ~210 | Control flow preservation |
+| bug/tint | ~260 | Edge cases, regression tests |
+| types | ~170 | Type system integrity |
+| samples + benchmark | ~20 | Real-world shader validation |
+| shadowing | ~20 | Name resolution |
+| loops | ~30 | Loop semantics |
+| var | ~55 | Variable declarations |
+| identifiers | ~20 | Identifier resolution |
+| out_of_order_decls | ~10 | Declaration ordering |
+| builtins (subset) | ~200 | Built-in function tests |
 
-- All imported tests that parse successfully should:
-  - Minify without errors
-  - Parse after minification
-  - Pass semantic validation after minification
-  - Preserve entry point names and binding attributes
+## How It Works
+
+The test harness (`internal/minifier_tests/tint_test.go`) performs semantic preservation testing:
+
+1. **Parse** original WGSL with miniray parser
+2. **Validate** original (skip if errors - likely intentional test case)
+3. **Minify** with full options (whitespace, identifiers, syntax)
+4. **Re-parse** minified output
+5. **Re-validate** minified output
+6. **Verify** entry points and bindings are preserved
+
+## Bugs Found
+
+These tests helped identify and fix:
+
+1. **Printer `>=` bug**: Type templates like `vec3<i32>` followed by `=` created `>=` operator
+2. **Renamer duplicate name bug**: Symbols with `UseCount=0` kept original names, causing conflicts
 
 ## Notes
 
-- Some tests may use f16 or other extensions not supported by miniray - skip these
-- Focus on semantic preservation, not output format matching
-- Tests from bug/ category are especially valuable for edge cases
+- Test files are excluded from git (17MB+) via `.gitignore`
+- Some tests use features miniray doesn't support (f16, subgroups) - these are skipped
+- Focus is on semantic preservation, not exact output matching
+- Tests from `bug/` category are especially valuable for edge cases
