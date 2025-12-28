@@ -16,7 +16,8 @@ LDFLAGS := -s -w \
 BUILD_DIR := build
 CMD_DIR := cmd/miniray
 
-.PHONY: all build clean test lint fmt vet check install help build-wasm package-wasm
+.PHONY: all build clean test lint fmt vet check install help build-wasm package-wasm lib lib-clean \
+        coverage coverage-html coverage-report coverage-func coverage-check coverage-clean
 
 # Default target
 all: check build
@@ -72,6 +73,23 @@ package-wasm: build-wasm
 	@echo "Files:"
 	@ls -lh $(NPM_DIR)/*.wasm $(NPM_DIR)/*.js 2>/dev/null || true
 
+# Build C static library for FFI integration
+LIB_CMD := cmd/miniray-lib
+
+.PHONY: lib lib-clean
+
+lib:
+	@echo "Building C static library (libminiray.a)..."
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=1 go build -buildmode=c-archive \
+		-o $(BUILD_DIR)/libminiray.a ./$(LIB_CMD)
+	@echo "Built:"
+	@echo "  $(BUILD_DIR)/libminiray.a  ($$(du -h $(BUILD_DIR)/libminiray.a | cut -f1))"
+	@echo "  $(BUILD_DIR)/libminiray.h  (C header)"
+
+lib-clean:
+	@rm -f $(BUILD_DIR)/libminiray.a $(BUILD_DIR)/libminiray.h
+
 # Install to GOPATH/bin
 install:
 	go install $(GOFLAGS) -ldflags "$(LDFLAGS)" ./$(CMD_DIR)
@@ -87,13 +105,85 @@ test:
 	@echo "Running tests..."
 	go test -v -race ./...
 
-# Run tests with coverage
-test-coverage:
+# Coverage settings
+COVERAGE_DIR := $(BUILD_DIR)/coverage
+COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
+COVERAGE_THRESHOLD := 50
+
+# Run tests with coverage (quick summary)
+coverage:
 	@echo "Running tests with coverage..."
-	@mkdir -p $(BUILD_DIR)
-	go test -v -race -coverprofile=$(BUILD_DIR)/coverage.out ./...
-	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
-	@echo "Coverage report: $(BUILD_DIR)/coverage.html"
+	@mkdir -p $(COVERAGE_DIR)
+	@go test -coverprofile=$(COVERAGE_PROFILE) -covermode=atomic ./... 2>&1 | \
+		grep -E '^(ok|FAIL|\?)' | \
+		awk '{if ($$1 == "ok" || $$1 == "FAIL") { split($$0, a, "coverage:"); if (length(a) > 1) print $$2, a[2]; else print $$2, "no test files" } }'
+	@echo ""
+	@echo "Total coverage: $$(go tool cover -func=$(COVERAGE_PROFILE) | grep total | awk '{print $$3}')"
+
+# Generate HTML coverage report
+coverage-html: coverage
+	@go tool cover -html=$(COVERAGE_PROFILE) -o $(COVERAGE_HTML)
+	@echo "HTML report: $(COVERAGE_HTML)"
+	@if command -v open >/dev/null 2>&1; then open $(COVERAGE_HTML); fi
+
+# Show per-function coverage
+coverage-func:
+	@if [ ! -f $(COVERAGE_PROFILE) ]; then $(MAKE) coverage; fi
+	@go tool cover -func=$(COVERAGE_PROFILE)
+
+# Detailed coverage report by package
+coverage-report:
+	@echo "Running coverage analysis..."
+	@mkdir -p $(COVERAGE_DIR)
+	@go test -count=1 -coverprofile=$(COVERAGE_PROFILE) -covermode=atomic ./... > /dev/null 2>&1
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════════════"
+	@echo "                    COVERAGE REPORT"
+	@echo "═══════════════════════════════════════════════════════════════"
+	@echo ""
+	@go test -count=1 -cover ./... 2>&1 | \
+		awk -F'\t' '/^ok|^\?/ { \
+			pkg = $$2; \
+			gsub(/github.com\/HugoDaniel\/miniray\//, "", pkg); \
+			if (pkg == "") pkg = "."; \
+			if (/no test files/) { cov = "no tests" } \
+			else if (/coverage:/) { \
+				match($$0, /coverage: [0-9.]+%/); \
+				cov = substr($$0, RSTART+10, RLENGTH-10); \
+			} else { cov = "0.0%" } \
+			printf "  %-40s %s\n", pkg, cov \
+		}'
+	@echo ""
+	@echo "───────────────────────────────────────────────────────────────"
+	@total=$$(go tool cover -func=$(COVERAGE_PROFILE) | grep total | awk '{print $$3}'); \
+	echo "  TOTAL                                    $$total"
+	@echo "═══════════════════════════════════════════════════════════════"
+	@go tool cover -html=$(COVERAGE_PROFILE) -o $(COVERAGE_HTML)
+	@echo ""
+	@echo "HTML report: $(COVERAGE_HTML)"
+
+# Check coverage meets threshold
+coverage-check:
+	@echo "Checking coverage threshold ($(COVERAGE_THRESHOLD)%)..."
+	@mkdir -p $(COVERAGE_DIR)
+	@go test -coverprofile=$(COVERAGE_PROFILE) -covermode=atomic ./... > /dev/null 2>&1
+	@total=$$(go tool cover -func=$(COVERAGE_PROFILE) | grep total | awk '{gsub(/%/, ""); print $$3}'); \
+	echo "Current coverage: $$total%"; \
+	if [ $$(echo "$$total < $(COVERAGE_THRESHOLD)" | bc -l) -eq 1 ]; then \
+		echo "FAIL: Coverage $$total% is below threshold $(COVERAGE_THRESHOLD)%"; \
+		exit 1; \
+	else \
+		echo "PASS: Coverage meets threshold"; \
+	fi
+
+# Clean coverage files
+coverage-clean:
+	@rm -rf $(COVERAGE_DIR)
+	@echo "Coverage files cleaned"
+
+# Legacy alias
+test-coverage: coverage-html
 
 # Run benchmarks
 bench:
@@ -147,10 +237,15 @@ help:
 	@echo "  build-all     Build for all platforms (including WASM)"
 	@echo "  build-wasm    Build WebAssembly module"
 	@echo "  package-wasm  Package WASM for npm distribution"
+	@echo "  lib           Build C static library (libminiray.a) for FFI"
 	@echo "  install       Install to GOPATH/bin"
 	@echo "  clean         Remove build artifacts"
 	@echo "  test          Run tests"
-	@echo "  test-coverage Run tests with coverage"
+	@echo "  coverage      Quick coverage summary"
+	@echo "  coverage-html Generate HTML coverage report"
+	@echo "  coverage-report Detailed coverage by package"
+	@echo "  coverage-func Per-function coverage breakdown"
+	@echo "  coverage-check Check coverage meets threshold ($(COVERAGE_THRESHOLD)%)"
 	@echo "  bench         Run benchmarks"
 	@echo "  lint          Run linter"
 	@echo "  fmt           Format code"
