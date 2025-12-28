@@ -7,10 +7,17 @@ import (
 	"github.com/HugoDaniel/miniray/internal/lexer"
 )
 
+// Renamer provides minified names for symbols.
+// This interface matches renamer.Renamer to avoid circular imports.
+type Renamer interface {
+	NameForSymbol(ref ast.Ref) string
+}
+
 // LayoutComputer computes memory layouts for WGSL types.
 type LayoutComputer struct {
 	module      *ast.Module
 	structCache map[string]*StructLayout
+	renamer     Renamer // optional renamer for mapped names
 }
 
 // NewLayoutComputer creates a layout computer for a module.
@@ -19,6 +26,12 @@ func NewLayoutComputer(module *ast.Module) *LayoutComputer {
 		module:      module,
 		structCache: make(map[string]*StructLayout),
 	}
+}
+
+// SetRenamer sets the renamer for mapped name lookups.
+// When set, getMappedName returns minified names instead of original names.
+func (lc *LayoutComputer) SetRenamer(r Renamer) {
+	lc.renamer = r
 }
 
 // ComputeTypeLayout computes layout for any WGSL type.
@@ -358,10 +371,11 @@ func (lc *LayoutComputer) typeToStringMapped(t ast.Type, mapped bool) string {
 }
 
 // getMappedName returns the mapped (minified) name for a symbol reference.
-// For now, returns the original name since reflection doesn't have access to the rename map.
-// This will be populated when combined minify+reflect is implemented.
+// If a renamer is set, returns the minified name; otherwise returns the original name.
 func (lc *LayoutComputer) getMappedName(ref ast.Ref) string {
-	// For now, return original name - minified names require the rename map
+	if lc.renamer != nil && ref.IsValid() {
+		return lc.renamer.NameForSymbol(ref)
+	}
 	return lc.getSymbolName(ref)
 }
 

@@ -96,6 +96,13 @@ func Reflect(source string) ReflectResult {
 
 // ReflectModule extracts reflection information from a parsed module.
 func ReflectModule(module *ast.Module) ReflectResult {
+	return ReflectModuleWithRenamer(module, nil)
+}
+
+// ReflectModuleWithRenamer extracts reflection information from a parsed module,
+// using the provided renamer for mapped names. If renamer is nil, mapped names
+// will be the same as original names.
+func ReflectModuleWithRenamer(module *ast.Module, renamer Renamer) ReflectResult {
 	result := ReflectResult{
 		Bindings:    []BindingInfo{},
 		Structs:     make(map[string]StructLayout),
@@ -103,6 +110,9 @@ func ReflectModule(module *ast.Module) ReflectResult {
 	}
 
 	lc := NewLayoutComputer(module)
+	if renamer != nil {
+		lc.SetRenamer(renamer)
+	}
 
 	// First pass: collect all struct definitions
 	for _, decl := range module.Declarations {

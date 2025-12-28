@@ -9,6 +9,7 @@ import (
 	"github.com/HugoDaniel/miniray/internal/dce"
 	"github.com/HugoDaniel/miniray/internal/parser"
 	"github.com/HugoDaniel/miniray/internal/printer"
+	"github.com/HugoDaniel/miniray/internal/reflect"
 	"github.com/HugoDaniel/miniray/internal/renamer"
 	"github.com/HugoDaniel/miniray/internal/sourcemap"
 )
@@ -448,6 +449,136 @@ func (m *Minifier) countStmtUsage(stmt ast.Stmt, uses map[ast.Ref]uint32) {
 	case *ast.DeclStmt:
 		m.countDeclUsage(s.Decl, uses)
 	}
+}
+
+// ----------------------------------------------------------------------------
+// Combined Minify + Reflect
+// ----------------------------------------------------------------------------
+
+// MinifyAndReflectResult contains both minification and reflection output.
+type MinifyAndReflectResult struct {
+	// Minified result
+	Result
+
+	// Reflection information with mapped names
+	Reflect reflect.ReflectResult
+}
+
+// MinifyAndReflect minifies the source and returns reflection info with mapped names.
+// The reflection output uses the renamer from minification, so mapped names
+// (NameMapped, TypeMapped, ElementTypeMapped) reflect the actual minified names.
+func (m *Minifier) MinifyAndReflect(source string) MinifyAndReflectResult {
+	result := MinifyAndReflectResult{
+		Result: Result{
+			Stats: Stats{OriginalSize: len(source)},
+		},
+	}
+
+	// 1. Parse into AST
+	p := parser.New(source)
+	module, errs := p.Parse()
+
+	// 2. Report parse errors
+	if len(errs) > 0 {
+		for _, err := range errs {
+			result.Errors = append(result.Errors, Error{
+				Message: err.Message,
+				Line:    err.Line,
+				Column:  err.Column,
+			})
+		}
+		// Return original source on parse error
+		result.Code = source
+		result.Stats.MinifiedSize = len(source)
+		result.Reflect = reflect.ReflectResult{
+			Bindings:    []reflect.BindingInfo{},
+			Structs:     make(map[string]reflect.StructLayout),
+			EntryPoints: []reflect.EntryPointInfo{},
+			Errors:      []string{errs[0].Message},
+		}
+		return result
+	}
+
+	// 3. Minify and get renamer
+	minResult, ren := m.minifyModuleWithRenamer(module, source)
+	result.Result = minResult
+	result.Stats.OriginalSize = len(source) // Restore original size after assignment
+
+	// 4. Reflect with the renamer for mapped names
+	result.Reflect = reflect.ReflectModuleWithRenamer(module, ren)
+
+	return result
+}
+
+// minifyModuleWithRenamer is like MinifyModuleWithSource but also returns the renamer.
+func (m *Minifier) minifyModuleWithRenamer(module *ast.Module, source string) (Result, printer.Renamer) {
+	result := Result{}
+
+	// Build reserved names set
+	reserved := renamer.ComputeReservedNames()
+
+	// Add user-specified keep names
+	for _, name := range m.options.KeepNames {
+		reserved[name] = true
+	}
+
+	// Mark API-facing symbols as non-renameable
+	m.markAPIFacingSymbols(module)
+
+	// Run dead code elimination if enabled
+	if m.options.TreeShaking {
+		result.Stats.SymbolsDead = dce.Mark(module)
+	} else {
+		// Mark all symbols as live if tree shaking is disabled
+		for i := range module.Symbols {
+			module.Symbols[i].Flags |= ast.IsLive
+		}
+	}
+
+	// Compute symbol usage before renaming
+	uses := m.computeSymbolUsage(module)
+
+	// Create renamer
+	var ren printer.Renamer
+	if m.options.MinifyIdentifiers {
+		minRenamer := renamer.NewMinifyRenamer(module.Symbols, reserved)
+		minRenamer.AccumulateSymbolUseCounts(uses)
+		minRenamer.AllocateSlots()
+		minRenamer.AssignNames()
+		ren = minRenamer
+	} else {
+		ren = renamer.NewNoOpRenamer(module.Symbols)
+	}
+
+	// Create source map generator if enabled
+	var sourceMapGen *sourcemap.Generator
+	if m.options.GenerateSourceMap {
+		sourceMapGen = sourcemap.NewGenerator(source)
+		sourceMapGen.SetFile(m.options.SourceMapOptions.File)
+		sourceMapGen.SetSourceName(m.options.SourceMapOptions.SourceName)
+		sourceMapGen.IncludeSourceContent(m.options.SourceMapOptions.IncludeSource)
+	}
+
+	// Print
+	p := printer.New(printer.Options{
+		MinifyWhitespace:  m.options.MinifyWhitespace,
+		MinifyIdentifiers: m.options.MinifyIdentifiers,
+		MinifySyntax:      m.options.MinifySyntax,
+		TreeShaking:       m.options.TreeShaking,
+		Renamer:           ren,
+		SourceMapGen:      sourceMapGen,
+	}, module.Symbols)
+
+	result.Code = p.Print(module)
+	result.Stats.MinifiedSize = len(result.Code)
+	result.Stats.SymbolsTotal = len(module.Symbols)
+
+	// Generate source map if enabled
+	if sourceMapGen != nil {
+		result.SourceMap = sourceMapGen.Generate()
+	}
+
+	return result, ren
 }
 
 // ----------------------------------------------------------------------------

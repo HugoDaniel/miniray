@@ -2,6 +2,9 @@ package reflect
 
 import (
 	"testing"
+
+	"github.com/HugoDaniel/miniray/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/parser"
 )
 
 func TestReflectBasicStruct(t *testing.T) {
@@ -1788,5 +1791,210 @@ fn main() -> @location(0) vec4f {
 	}
 	if result.EntryPoints[0].Stage != "fragment" {
 		t.Errorf("expected stage 'fragment', got '%s'", result.EntryPoints[0].Stage)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Mapped Name Tests
+// ----------------------------------------------------------------------------
+
+// mockRenamer is a simple renamer for testing that maps symbol refs to short names.
+type mockRenamer struct {
+	nameMap map[uint32]string
+}
+
+func (m *mockRenamer) NameForSymbol(ref ast.Ref) string {
+	if name, ok := m.nameMap[ref.InnerIndex]; ok {
+		return name
+	}
+	return ""
+}
+
+func TestMappedNamesWithoutRenamer(t *testing.T) {
+	source := `
+struct MyStruct {
+    position: vec3f,
+    color: vec4f,
+}
+@group(0) @binding(0) var<storage> data: array<MyStruct>;
+`
+	result := Reflect(source)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	// Without renamer, mapped names should equal original names
+	binding := result.Bindings[0]
+	if binding.Name != binding.NameMapped {
+		t.Errorf("without renamer: Name '%s' should equal NameMapped '%s'", binding.Name, binding.NameMapped)
+	}
+	if binding.Type != binding.TypeMapped {
+		t.Errorf("without renamer: Type '%s' should equal TypeMapped '%s'", binding.Type, binding.TypeMapped)
+	}
+
+	// Check array element mapped names
+	if binding.Array == nil {
+		t.Fatal("expected array info")
+	}
+	if binding.Array.ElementType != binding.Array.ElementTypeMapped {
+		t.Errorf("without renamer: ElementType '%s' should equal ElementTypeMapped '%s'",
+			binding.Array.ElementType, binding.Array.ElementTypeMapped)
+	}
+
+	// Check struct field mapped names
+	structLayout, ok := result.Structs["MyStruct"]
+	if !ok {
+		t.Fatal("expected MyStruct in structs map")
+	}
+	for _, field := range structLayout.Fields {
+		if field.Name != field.NameMapped {
+			t.Errorf("without renamer: field Name '%s' should equal NameMapped '%s'", field.Name, field.NameMapped)
+		}
+		if field.Type != field.TypeMapped {
+			t.Errorf("without renamer: field Type '%s' should equal TypeMapped '%s'", field.Type, field.TypeMapped)
+		}
+	}
+}
+
+func TestMappedNamesWithRenamer(t *testing.T) {
+	source := `
+struct Particle {
+    position: vec3f,
+    velocity: vec3f,
+}
+@group(0) @binding(0) var<storage> particles: array<Particle>;
+@compute @workgroup_size(64)
+fn main() {}
+`
+	p := parser.New(source)
+	module, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	// Create a mock renamer that maps symbols to short names
+	// We need to find the symbol indices for Particle struct and particles binding
+	renameMap := make(map[uint32]string)
+	for i, sym := range module.Symbols {
+		switch sym.OriginalName {
+		case "Particle":
+			renameMap[uint32(i)] = "a" // Particle -> a
+		case "particles":
+			renameMap[uint32(i)] = "b" // particles -> b
+		case "position":
+			renameMap[uint32(i)] = "c" // position -> c
+		case "velocity":
+			renameMap[uint32(i)] = "d" // velocity -> d
+		}
+	}
+	renamer := &mockRenamer{nameMap: renameMap}
+
+	result := ReflectModuleWithRenamer(module, renamer)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	// Check binding mapped names
+	binding := result.Bindings[0]
+	if binding.Name != "particles" {
+		t.Errorf("expected Name 'particles', got '%s'", binding.Name)
+	}
+	if binding.NameMapped != "b" {
+		t.Errorf("expected NameMapped 'b', got '%s'", binding.NameMapped)
+	}
+
+	// Type should show original, TypeMapped should show minified
+	if binding.Type != "array<Particle>" {
+		t.Errorf("expected Type 'array<Particle>', got '%s'", binding.Type)
+	}
+	if binding.TypeMapped != "array<a>" {
+		t.Errorf("expected TypeMapped 'array<a>', got '%s'", binding.TypeMapped)
+	}
+
+	// Check array element type mapping
+	if binding.Array == nil {
+		t.Fatal("expected array info")
+	}
+	if binding.Array.ElementType != "Particle" {
+		t.Errorf("expected ElementType 'Particle', got '%s'", binding.Array.ElementType)
+	}
+	if binding.Array.ElementTypeMapped != "a" {
+		t.Errorf("expected ElementTypeMapped 'a', got '%s'", binding.Array.ElementTypeMapped)
+	}
+
+	// Check struct field mapped names
+	structLayout, ok := result.Structs["Particle"]
+	if !ok {
+		t.Fatal("expected Particle in structs map")
+	}
+
+	// Find position field
+	var posField *FieldInfo
+	for i := range structLayout.Fields {
+		if structLayout.Fields[i].Name == "position" {
+			posField = &structLayout.Fields[i]
+			break
+		}
+	}
+	if posField == nil {
+		t.Fatal("expected position field")
+	}
+	if posField.NameMapped != "c" {
+		t.Errorf("expected position NameMapped 'c', got '%s'", posField.NameMapped)
+	}
+}
+
+func TestMappedNamesNestedArray(t *testing.T) {
+	source := `
+struct Inner {
+    value: f32,
+}
+@group(0) @binding(0) var<storage> data: array<array<Inner, 4> >;
+`
+	p := parser.New(source)
+	module, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	// Create renamer that maps Inner -> x
+	renameMap := make(map[uint32]string)
+	for i, sym := range module.Symbols {
+		if sym.OriginalName == "Inner" {
+			renameMap[uint32(i)] = "x"
+		}
+	}
+	renamer := &mockRenamer{nameMap: renameMap}
+
+	result := ReflectModuleWithRenamer(module, renamer)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	binding := result.Bindings[0]
+
+	// Outer array element type should be mapped
+	if binding.Array == nil {
+		t.Fatal("expected array info")
+	}
+	if binding.Array.ElementType != "array<Inner, 4>" {
+		t.Errorf("expected ElementType 'array<Inner, 4>', got '%s'", binding.Array.ElementType)
+	}
+	if binding.Array.ElementTypeMapped != "array<x, 4>" {
+		t.Errorf("expected ElementTypeMapped 'array<x, 4>', got '%s'", binding.Array.ElementTypeMapped)
+	}
+
+	// Nested array element type should also be mapped
+	if binding.Array.Array == nil {
+		t.Fatal("expected nested array info")
+	}
+	if binding.Array.Array.ElementType != "Inner" {
+		t.Errorf("expected nested ElementType 'Inner', got '%s'", binding.Array.Array.ElementType)
+	}
+	if binding.Array.Array.ElementTypeMapped != "x" {
+		t.Errorf("expected nested ElementTypeMapped 'x', got '%s'", binding.Array.Array.ElementTypeMapped)
 	}
 }

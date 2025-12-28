@@ -9,6 +9,8 @@ import (
 	"github.com/HugoDaniel/miniray/internal/reflect"
 )
 
+// Re-export minifier types that are needed for MinifyAndReflect
+
 // MinifyOptions controls minification behavior.
 type MinifyOptions struct {
 	// MinifyWhitespace removes unnecessary whitespace and newlines.
@@ -376,4 +378,82 @@ func convertEntryPoints(entryPoints []reflect.EntryPointInfo) []EntryPointInfo {
 		}
 	}
 	return result
+}
+
+// ----------------------------------------------------------------------------
+// Combined Minify + Reflect API
+// ----------------------------------------------------------------------------
+
+// MinifyAndReflectResult contains both minification and reflection output.
+// The reflection information uses the actual minified names, so the mapped
+// name fields (NameMapped, TypeMapped, ElementTypeMapped) show the short
+// names that appear in the minified code.
+type MinifyAndReflectResult struct {
+	// Minified code result
+	MinifyResult
+
+	// Reflection information with mapped names from minification
+	Reflect ReflectResult
+}
+
+// MinifyAndReflect minifies the source and returns reflection info with mapped names.
+// This is useful when you need both minified output and reflection data, and want
+// the reflection to show the actual minified names (not just original names).
+//
+// Example use case: A WebGPU framework that needs to create buffer bindings
+// using minified struct field names after minification.
+func MinifyAndReflect(source string) MinifyAndReflectResult {
+	return MinifyAndReflectWithOptions(source, MinifyOptions{
+		MinifyWhitespace:  true,
+		MinifyIdentifiers: true,
+		MinifySyntax:      true,
+	})
+}
+
+// MinifyAndReflectWithOptions minifies with custom options and returns reflection.
+func MinifyAndReflectWithOptions(source string, opts MinifyOptions) MinifyAndReflectResult {
+	m := minifier.New(minifier.Options{
+		MinifyWhitespace:       opts.MinifyWhitespace,
+		MinifyIdentifiers:      opts.MinifyIdentifiers,
+		MinifySyntax:           opts.MinifySyntax,
+		MangleExternalBindings: opts.MangleExternalBindings,
+		KeepNames:              opts.KeepNames,
+		GenerateSourceMap:      opts.SourceMap,
+		SourceMapOptions: minifier.SourceMapOptions{
+			File:          opts.SourceMapOptions.File,
+			SourceName:    opts.SourceMapOptions.SourceName,
+			IncludeSource: opts.SourceMapOptions.IncludeSource,
+		},
+	})
+
+	result := m.MinifyAndReflect(source)
+
+	// Convert errors
+	errors := make([]string, len(result.Errors))
+	for i, e := range result.Errors {
+		errors[i] = e.Message
+	}
+
+	apiResult := MinifyAndReflectResult{
+		MinifyResult: MinifyResult{
+			Code:         result.Code,
+			Errors:       errors,
+			OriginalSize: result.Stats.OriginalSize,
+			MinifiedSize: result.Stats.MinifiedSize,
+		},
+		Reflect: ReflectResult{
+			Bindings:    convertBindings(result.Reflect.Bindings),
+			Structs:     convertStructs(result.Reflect.Structs),
+			EntryPoints: convertEntryPoints(result.Reflect.EntryPoints),
+			Errors:      result.Reflect.Errors,
+		},
+	}
+
+	// Include source map if generated
+	if result.SourceMap != nil {
+		apiResult.MinifyResult.SourceMap = result.SourceMap.ToJSON()
+		apiResult.MinifyResult.SourceMapDataURI = result.SourceMap.ToDataURI()
+	}
+
+	return apiResult
 }
