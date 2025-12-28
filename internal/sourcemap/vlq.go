@@ -29,9 +29,9 @@ func init() {
 // VLQ constants
 const (
 	vlqBaseShift       = 5
-	vlqBase            = 1 << vlqBaseShift        // 32
-	vlqBaseMask        = vlqBase - 1              // 31 (0x1F)
-	vlqContinuationBit = vlqBase                  // 32 (0x20)
+	vlqBase            = 1 << vlqBaseShift // 32
+	vlqBaseMask        = vlqBase - 1       // 31 (0x1F)
+	vlqContinuationBit = vlqBase           // 32 (0x20)
 	vlqSignBit         = 1
 )
 
@@ -43,7 +43,7 @@ func EncodeVLQ(value int) string {
 	// - Negative numbers: ((-value) << 1) | 1
 	var vlq uint32
 	if value < 0 {
-		vlq = uint32((-value) << 1) | vlqSignBit
+		vlq = uint32((-value)<<1) | vlqSignBit
 	} else {
 		vlq = uint32(value << 1)
 	}

@@ -1043,8 +1043,8 @@ fn makeTransforms() -> array<Transform2D, 3> {
 `
 
 	opts := minifier.Options{
-		MinifyWhitespace:   true,
-		MinifyIdentifiers:  true,
+		MinifyWhitespace:       true,
+		MinifyIdentifiers:      true,
 		MangleExternalBindings: true,
 	}
 
@@ -1085,8 +1085,8 @@ fn makeNestedArray() {
 `
 
 	opts := minifier.Options{
-		MinifyWhitespace:   true,
-		MinifyIdentifiers:  true,
+		MinifyWhitespace:       true,
+		MinifyIdentifiers:      true,
 		MangleExternalBindings: true,
 	}
 
@@ -1115,8 +1115,8 @@ fn makeTransforms() {
 `
 
 	opts := minifier.Options{
-		MinifyWhitespace:   true,
-		MinifyIdentifiers:  true,
+		MinifyWhitespace:       true,
+		MinifyIdentifiers:      true,
 		MangleExternalBindings: true,
 	}
 
@@ -1144,8 +1144,8 @@ fn makeVecs() {
 `
 
 	opts := minifier.Options{
-		MinifyWhitespace:   true,
-		MinifyIdentifiers:  true,
+		MinifyWhitespace:       true,
+		MinifyIdentifiers:      true,
 		MangleExternalBindings: true,
 	}
 

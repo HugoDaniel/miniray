@@ -45,8 +45,8 @@ func TestParseSamples(t *testing.T) {
 
 	// Samples that need more parser features (sized arrays, for loops, etc.)
 	samplesNeedWork := []string{
-		"blur.wgsl",          // Uses sized arrays, nested for loops
-		"cornell_common.wgsl", // Uses array constructors
+		"blur.wgsl",            // Uses sized arrays, nested for loops
+		"cornell_common.wgsl",  // Uses array constructors
 		"fullscreen_quad.wgsl", // Uses const array declarations
 		"shadow_fragment.wgsl", // Uses nested for loops
 	}
@@ -223,7 +223,7 @@ func TestSizeReductionSamples(t *testing.T) {
 
 func TestPreservesEntryPointNames(t *testing.T) {
 	samples := []struct {
-		file       string
+		file        string
 		entryPoints []string
 	}{
 		{"example.wgsl", []string{"vertexMain", "fragmentMain", "computeMain"}},

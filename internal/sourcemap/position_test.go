@@ -174,7 +174,7 @@ func TestUTF8MultibyteEmoji(t *testing.T) {
 	tests := []struct {
 		offset   int
 		line     int
-		col      int    // UTF-16 column
+		col      int // UTF-16 column
 		describe string
 	}{
 		{0, 0, 0, "before emoji"},

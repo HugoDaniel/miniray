@@ -365,9 +365,9 @@ func TestMinifyRenamerAccumulateSkipsInvalidRef(t *testing.T) {
 
 	// Accumulate with invalid ref - should not panic
 	uses := map[ast.Ref]uint32{
-		ast.InvalidRef():   10,
-		{InnerIndex: 999}:  5, // out of bounds
-		{InnerIndex: 0}:    1, // valid
+		ast.InvalidRef():  10,
+		{InnerIndex: 999}: 5, // out of bounds
+		{InnerIndex: 0}:   1, // valid
 	}
 	r.AccumulateSymbolUseCounts(uses)
 

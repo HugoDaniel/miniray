@@ -60,10 +60,10 @@ type MinifyResult struct {
 
 // MinifyAndReflectResult combines minification and reflection results
 type MinifyAndReflectResult struct {
-	Code         string               `json:"code"`
-	Errors       []string             `json:"errors,omitempty"`
-	OriginalSize int                  `json:"originalSize"`
-	MinifiedSize int                  `json:"minifiedSize"`
+	Code         string                `json:"code"`
+	Errors       []string              `json:"errors,omitempty"`
+	OriginalSize int                   `json:"originalSize"`
+	MinifiedSize int                   `json:"minifiedSize"`
 	Reflect      reflect.ReflectResult `json:"reflect"`
 }
 

@@ -31,14 +31,14 @@ type Mapping struct {
 
 // Generator builds a source map incrementally.
 type Generator struct {
-	source         string
-	lineIndex      *LineIndex
-	mappings       []Mapping
-	names          map[string]int // name -> index
-	namesList      []string
-	file           string
-	sourceName     string
-	includeSource  bool
+	source        string
+	lineIndex     *LineIndex
+	mappings      []Mapping
+	names         map[string]int // name -> index
+	namesList     []string
+	file          string
+	sourceName    string
+	includeSource bool
 
 	// Current generated line for tracking
 	currentGenLine int

@@ -50,15 +50,15 @@ var primitiveLayouts = map[string]TypeLayout{
 	"mat4x4f": {Size: 64, Alignment: 16}, // 4 * roundUp(16, 16) = 4 * 16 = 64
 
 	// Matrix shorthands - f16 element type
-	"mat2x2h": {Size: 8, Alignment: 4},   // 2 * roundUp(4, 4) = 2 * 4 = 8
-	"mat2x3h": {Size: 16, Alignment: 8},  // 2 * roundUp(8, 6) = 2 * 8 = 16
-	"mat2x4h": {Size: 16, Alignment: 8},  // 2 * roundUp(8, 8) = 2 * 8 = 16
-	"mat3x2h": {Size: 12, Alignment: 4},  // 3 * roundUp(4, 4) = 3 * 4 = 12
-	"mat3x3h": {Size: 24, Alignment: 8},  // 3 * roundUp(8, 6) = 3 * 8 = 24
-	"mat3x4h": {Size: 24, Alignment: 8},  // 3 * roundUp(8, 8) = 3 * 8 = 24
-	"mat4x2h": {Size: 16, Alignment: 4},  // 4 * roundUp(4, 4) = 4 * 4 = 16
-	"mat4x3h": {Size: 32, Alignment: 8},  // 4 * roundUp(8, 6) = 4 * 8 = 32
-	"mat4x4h": {Size: 32, Alignment: 8},  // 4 * roundUp(8, 8) = 4 * 8 = 32
+	"mat2x2h": {Size: 8, Alignment: 4},  // 2 * roundUp(4, 4) = 2 * 4 = 8
+	"mat2x3h": {Size: 16, Alignment: 8}, // 2 * roundUp(8, 6) = 2 * 8 = 16
+	"mat2x4h": {Size: 16, Alignment: 8}, // 2 * roundUp(8, 8) = 2 * 8 = 16
+	"mat3x2h": {Size: 12, Alignment: 4}, // 3 * roundUp(4, 4) = 3 * 4 = 12
+	"mat3x3h": {Size: 24, Alignment: 8}, // 3 * roundUp(8, 6) = 3 * 8 = 24
+	"mat3x4h": {Size: 24, Alignment: 8}, // 3 * roundUp(8, 8) = 3 * 8 = 24
+	"mat4x2h": {Size: 16, Alignment: 4}, // 4 * roundUp(4, 4) = 4 * 4 = 16
+	"mat4x3h": {Size: 32, Alignment: 8}, // 4 * roundUp(8, 6) = 4 * 8 = 32
+	"mat4x4h": {Size: 32, Alignment: 8}, // 4 * roundUp(8, 8) = 4 * 8 = 32
 }
 
 // vectorElementSize returns the size of a vector element type.

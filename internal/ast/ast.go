@@ -108,17 +108,17 @@ type Symbol struct {
 type SymbolKind uint8
 
 const (
-	SymbolUnbound    SymbolKind = iota // Not yet resolved
-	SymbolConst                        // const declaration
-	SymbolOverride                     // override declaration
-	SymbolLet                          // let declaration
-	SymbolVar                          // var declaration
-	SymbolFunction                     // fn declaration
-	SymbolStruct                       // struct declaration
-	SymbolAlias                        // type alias
-	SymbolParameter                    // function parameter
-	SymbolBuiltin                      // built-in function/type
-	SymbolMember                       // struct member
+	SymbolUnbound   SymbolKind = iota // Not yet resolved
+	SymbolConst                       // const declaration
+	SymbolOverride                    // override declaration
+	SymbolLet                         // let declaration
+	SymbolVar                         // var declaration
+	SymbolFunction                    // fn declaration
+	SymbolStruct                      // struct declaration
+	SymbolAlias                       // type alias
+	SymbolParameter                   // function parameter
+	SymbolBuiltin                     // built-in function/type
+	SymbolMember                      // struct member
 )
 
 // SymbolFlags are bitflags for symbol properties.
@@ -184,7 +184,7 @@ type Module struct {
 	SourcePath string // File path (for error messages)
 
 	// Top-level declarations in order
-	Directives  []Directive
+	Directives   []Directive
 	Declarations []Decl
 
 	// Symbol table
@@ -241,7 +241,7 @@ type Decl interface {
 type ConstDecl struct {
 	Loc         Loc
 	Name        Ref
-	Type        Type   // nil if inferred
+	Type        Type // nil if inferred
 	Initializer Expr
 }
 
@@ -287,8 +287,8 @@ type FunctionDecl struct {
 	Attributes []Attribute
 	Name       Ref
 	Parameters []Parameter
-	ReturnType Type          // nil for void
-	ReturnAttr []Attribute   // Return value attributes
+	ReturnType Type        // nil for void
+	ReturnAttr []Attribute // Return value attributes
 	Body       *CompoundStmt
 }
 
@@ -425,8 +425,8 @@ func (*IdentType) isType() {}
 // VecType represents vec2<T>, vec3<T>, vec4<T> or vec2f, etc.
 type VecType struct {
 	Loc       Loc
-	Size      uint8 // 2, 3, or 4
-	ElemType  Type  // Element type (nil for shorthand like vec3f)
+	Size      uint8  // 2, 3, or 4
+	ElemType  Type   // Element type (nil for shorthand like vec3f)
 	Shorthand string // "vec3f", "vec4i", etc. (empty if using template)
 }
 
@@ -558,24 +558,24 @@ func (*BinaryExpr) isExpr() {}
 type BinaryOp uint8
 
 const (
-	BinOpAdd BinaryOp = iota // +
-	BinOpSub                 // -
-	BinOpMul                 // *
-	BinOpDiv                 // /
-	BinOpMod                 // %
-	BinOpAnd                 // &
-	BinOpOr                  // |
-	BinOpXor                 // ^
-	BinOpShl                 // <<
-	BinOpShr                 // >>
-	BinOpLogicalAnd          // &&
-	BinOpLogicalOr           // ||
-	BinOpEq                  // ==
-	BinOpNe                  // !=
-	BinOpLt                  // <
-	BinOpLe                  // <=
-	BinOpGt                  // >
-	BinOpGe                  // >=
+	BinOpAdd        BinaryOp = iota // +
+	BinOpSub                        // -
+	BinOpMul                        // *
+	BinOpDiv                        // /
+	BinOpMod                        // %
+	BinOpAnd                        // &
+	BinOpOr                         // |
+	BinOpXor                        // ^
+	BinOpShl                        // <<
+	BinOpShr                        // >>
+	BinOpLogicalAnd                 // &&
+	BinOpLogicalOr                  // ||
+	BinOpEq                         // ==
+	BinOpNe                         // !=
+	BinOpLt                         // <
+	BinOpLe                         // <=
+	BinOpGt                         // >
+	BinOpGe                         // >=
 )
 
 // UnaryExpr represents a unary operation.
@@ -592,18 +592,18 @@ func (*UnaryExpr) isExpr() {}
 type UnaryOp uint8
 
 const (
-	UnaryOpNeg   UnaryOp = iota // -
-	UnaryOpNot                  // !
-	UnaryOpBitNot               // ~
-	UnaryOpDeref                // *
-	UnaryOpAddr                 // &
+	UnaryOpNeg    UnaryOp = iota // -
+	UnaryOpNot                   // !
+	UnaryOpBitNot                // ~
+	UnaryOpDeref                 // *
+	UnaryOpAddr                  // &
 )
 
 // CallExpr represents a function call or type constructor.
 type CallExpr struct {
 	Loc          Loc
-	Func         Expr      // IdentExpr for function name (nil if TemplateType is set)
-	TemplateType Type      // For templated constructors: array<T, N>, vec2<T>, etc.
+	Func         Expr // IdentExpr for function name (nil if TemplateType is set)
+	TemplateType Type // For templated constructors: array<T, N>, vec2<T>, etc.
 	Args         []Expr
 	Flags        ExprFlags // Purity flags
 }
@@ -834,8 +834,8 @@ func NewScope(parent *Scope) *Scope {
 
 // PurityContext provides context for purity analysis.
 type PurityContext struct {
-	Symbols     []Symbol
-	PureCalls   map[string]bool // Known pure built-in functions
+	Symbols   []Symbol
+	PureCalls map[string]bool // Known pure built-in functions
 }
 
 // NewPurityContext creates a purity context with known pure functions.

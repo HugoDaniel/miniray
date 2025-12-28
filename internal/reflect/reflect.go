@@ -13,10 +13,10 @@ import (
 
 // ReflectResult contains all reflection information for a shader module.
 type ReflectResult struct {
-	Bindings    []BindingInfo          `json:"bindings"`
+	Bindings    []BindingInfo           `json:"bindings"`
 	Structs     map[string]StructLayout `json:"structs"`
-	EntryPoints []EntryPointInfo       `json:"entryPoints"`
-	Errors      []string               `json:"errors,omitempty"`
+	EntryPoints []EntryPointInfo        `json:"entryPoints"`
+	Errors      []string                `json:"errors,omitempty"`
 }
 
 // BindingInfo describes a single @group/@binding variable.
@@ -68,7 +68,7 @@ type FieldInfo struct {
 // EntryPointInfo describes a shader entry point function.
 type EntryPointInfo struct {
 	Name          string `json:"name"`
-	Stage         string `json:"stage"` // "vertex", "fragment", "compute"
+	Stage         string `json:"stage"`         // "vertex", "fragment", "compute"
 	WorkgroupSize []int  `json:"workgroupSize"` // null for vertex/fragment
 }
 

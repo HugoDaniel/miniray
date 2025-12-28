@@ -289,9 +289,9 @@ func TestComputeToysShaderFiles(t *testing.T) {
 // when used in type positions (variable declarations, function parameters, return types).
 func TestStructTypeRenaming(t *testing.T) {
 	opts := minifier.Options{
-		MinifyWhitespace:   true,
-		MinifyIdentifiers:  true,
-		MinifySyntax:       true,
+		MinifyWhitespace:  true,
+		MinifyIdentifiers: true,
+		MinifySyntax:      true,
 	}
 
 	tests := []struct {

@@ -258,7 +258,7 @@ func TestArrayTypeWithSizeExpression(t *testing.T) {
 var arr: array<f32, N>;`,
 		},
 		{
-			name: "array with literal size",
+			name:  "array with literal size",
 			input: `var arr: array<f32, 64>;`,
 		},
 		{
@@ -298,11 +298,11 @@ func TestConstWithTypeAnnotation(t *testing.T) {
 		input string
 	}{
 		{
-			name: "const with u32 type",
+			name:  "const with u32 type",
 			input: `const movements: u32 = 3;`,
 		},
 		{
-			name: "const with f32 type",
+			name:  "const with f32 type",
 			input: `const PI: f32 = 3.14159;`,
 		},
 	}
@@ -402,7 +402,7 @@ fn bezier(pos: vec2f, A: vec2f, B: vec2f, C: vec2f) -> BezierResult {
 }`,
 		},
 		{
-			name: "texture_external type",
+			name:  "texture_external type",
 			input: `@group(1) @binding(1) var videoTexture: texture_external;`,
 		},
 		{

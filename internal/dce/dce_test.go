@@ -979,4 +979,3 @@ func TestCollectDeclDeps_LetDecl(t *testing.T) {
 		t.Error("expected dependency entry for LetDecl with InnerIndex 5")
 	}
 }
-

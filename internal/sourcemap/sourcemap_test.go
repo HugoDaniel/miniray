@@ -424,8 +424,8 @@ func TestLineCoverageMultipleGaps(t *testing.T) {
 	g := NewGenerator("a\nb\nc\nd\ne\n")
 	g.SetSourceName("test.wgsl")
 
-	g.AddMapping(0, 0, 0, "")  // line 0
-	g.AddMapping(4, 0, 8, "")  // line 4 (skip 1, 2, 3)
+	g.AddMapping(0, 0, 0, "") // line 0
+	g.AddMapping(4, 0, 8, "") // line 4 (skip 1, 2, 3)
 
 	sm := g.Generate()
 	mappings, _ := DecodeMappings(sm.Mappings)

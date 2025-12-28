@@ -2563,7 +2563,7 @@ func TestParseIntAttrInvalid(t *testing.T) {
 
 func TestParseWorkgroupSizeVariants(t *testing.T) {
 	tests := []struct {
-		source string
+		source  string
 		x, y, z int
 	}{
 		{`@compute @workgroup_size(8) fn main() {}`, 8, 1, 1},
@@ -3154,4 +3154,3 @@ const N = 10;
 		t.Logf("errors (expected): %v", result.Errors)
 	}
 }
-

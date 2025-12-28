@@ -62,55 +62,55 @@ const (
 	TokWhile
 
 	// Operators
-	TokPlus       // +
-	TokMinus      // -
-	TokStar       // *
-	TokSlash      // /
-	TokPercent    // %
-	TokAmp        // &
-	TokPipe       // |
-	TokCaret      // ^
-	TokTilde      // ~
-	TokBang       // !
-	TokLt         // <
-	TokGt         // >
-	TokEq         // =
-	TokDot        // .
-	TokAt         // @
+	TokPlus    // +
+	TokMinus   // -
+	TokStar    // *
+	TokSlash   // /
+	TokPercent // %
+	TokAmp     // &
+	TokPipe    // |
+	TokCaret   // ^
+	TokTilde   // ~
+	TokBang    // !
+	TokLt      // <
+	TokGt      // >
+	TokEq      // =
+	TokDot     // .
+	TokAt      // @
 
 	// Multi-char operators
-	TokPlusPlus     // ++
-	TokMinusMinus   // --
-	TokAmpAmp       // &&
-	TokPipePipe     // ||
-	TokLtLt         // <<
-	TokGtGt         // >>
-	TokLtEq         // <=
-	TokGtEq         // >=
-	TokEqEq         // ==
-	TokBangEq       // !=
-	TokArrow        // ->
-	TokPlusEq       // +=
-	TokMinusEq      // -=
-	TokStarEq       // *=
-	TokSlashEq      // /=
-	TokPercentEq    // %=
-	TokAmpEq        // &=
-	TokPipeEq       // |=
-	TokCaretEq      // ^=
-	TokLtLtEq       // <<=
-	TokGtGtEq       // >>=
+	TokPlusPlus   // ++
+	TokMinusMinus // --
+	TokAmpAmp     // &&
+	TokPipePipe   // ||
+	TokLtLt       // <<
+	TokGtGt       // >>
+	TokLtEq       // <=
+	TokGtEq       // >=
+	TokEqEq       // ==
+	TokBangEq     // !=
+	TokArrow      // ->
+	TokPlusEq     // +=
+	TokMinusEq    // -=
+	TokStarEq     // *=
+	TokSlashEq    // /=
+	TokPercentEq  // %=
+	TokAmpEq      // &=
+	TokPipeEq     // |=
+	TokCaretEq    // ^=
+	TokLtLtEq     // <<=
+	TokGtGtEq     // >>=
 
 	// Delimiters
-	TokLParen    // (
-	TokRParen    // )
-	TokLBrace    // {
-	TokRBrace    // }
-	TokLBracket  // [
-	TokRBracket  // ]
-	TokSemicolon // ;
-	TokColon     // :
-	TokComma     // ,
+	TokLParen     // (
+	TokRParen     // )
+	TokLBrace     // {
+	TokRBrace     // }
+	TokLBracket   // [
+	TokRBracket   // ]
+	TokSemicolon  // ;
+	TokColon      // :
+	TokComma      // ,
 	TokUnderscore // _ (as placeholder expression)
 
 	// Template delimiters (context-sensitive)
@@ -127,13 +127,13 @@ func (k TokenKind) String() string {
 }
 
 var tokenNames = [...]string{
-	TokError:       "error",
-	TokEOF:         "EOF",
-	TokIntLiteral:  "int",
+	TokError:        "error",
+	TokEOF:          "EOF",
+	TokIntLiteral:   "int",
 	TokFloatLiteral: "float",
-	TokTrue:        "true",
-	TokFalse:       "false",
-	TokIdent:       "identifier",
+	TokTrue:         "true",
+	TokFalse:        "false",
+	TokIdent:        "identifier",
 	// Keywords
 	TokAlias:       "alias",
 	TokBreak:       "break",
@@ -160,52 +160,52 @@ var tokenNames = [...]string{
 	TokVar:         "var",
 	TokWhile:       "while",
 	// Operators
-	TokPlus:     "+",
-	TokMinus:    "-",
-	TokStar:     "*",
-	TokSlash:    "/",
-	TokPercent:  "%",
-	TokAmp:      "&",
-	TokPipe:     "|",
-	TokCaret:    "^",
-	TokTilde:    "~",
-	TokBang:     "!",
-	TokLt:       "<",
-	TokGt:       ">",
-	TokEq:       "=",
-	TokDot:      ".",
-	TokAt:       "@",
-	TokPlusPlus:   "++",
-	TokMinusMinus: "--",
-	TokAmpAmp:     "&&",
-	TokPipePipe:   "||",
-	TokLtLt:       "<<",
-	TokGtGt:       ">>",
-	TokLtEq:       "<=",
-	TokGtEq:       ">=",
-	TokEqEq:       "==",
-	TokBangEq:     "!=",
-	TokArrow:      "->",
-	TokPlusEq:     "+=",
-	TokMinusEq:    "-=",
-	TokStarEq:     "*=",
-	TokSlashEq:    "/=",
-	TokPercentEq:  "%=",
-	TokAmpEq:      "&=",
-	TokPipeEq:     "|=",
-	TokCaretEq:    "^=",
-	TokLtLtEq:     "<<=",
-	TokGtGtEq:     ">>=",
-	TokLParen:     "(",
-	TokRParen:     ")",
-	TokLBrace:     "{",
-	TokRBrace:     "}",
-	TokLBracket:   "[",
-	TokRBracket:   "]",
-	TokSemicolon:  ";",
-	TokColon:      ":",
-	TokComma:      ",",
-	TokUnderscore: "_",
+	TokPlus:              "+",
+	TokMinus:             "-",
+	TokStar:              "*",
+	TokSlash:             "/",
+	TokPercent:           "%",
+	TokAmp:               "&",
+	TokPipe:              "|",
+	TokCaret:             "^",
+	TokTilde:             "~",
+	TokBang:              "!",
+	TokLt:                "<",
+	TokGt:                ">",
+	TokEq:                "=",
+	TokDot:               ".",
+	TokAt:                "@",
+	TokPlusPlus:          "++",
+	TokMinusMinus:        "--",
+	TokAmpAmp:            "&&",
+	TokPipePipe:          "||",
+	TokLtLt:              "<<",
+	TokGtGt:              ">>",
+	TokLtEq:              "<=",
+	TokGtEq:              ">=",
+	TokEqEq:              "==",
+	TokBangEq:            "!=",
+	TokArrow:             "->",
+	TokPlusEq:            "+=",
+	TokMinusEq:           "-=",
+	TokStarEq:            "*=",
+	TokSlashEq:           "/=",
+	TokPercentEq:         "%=",
+	TokAmpEq:             "&=",
+	TokPipeEq:            "|=",
+	TokCaretEq:           "^=",
+	TokLtLtEq:            "<<=",
+	TokGtGtEq:            ">>=",
+	TokLParen:            "(",
+	TokRParen:            ")",
+	TokLBrace:            "{",
+	TokRBrace:            "}",
+	TokLBracket:          "[",
+	TokRBracket:          "]",
+	TokSemicolon:         ";",
+	TokColon:             ":",
+	TokComma:             ",",
+	TokUnderscore:        "_",
 	TokTemplateArgsStart: "<template",
 	TokTemplateArgsEnd:   "template>",
 }
@@ -216,10 +216,10 @@ var tokenNames = [...]string{
 
 // Token represents a lexical token.
 type Token struct {
-	Kind   TokenKind
-	Start  int    // Byte offset in source
-	End    int    // Byte offset of end (exclusive)
-	Value  string // For identifiers and literals
+	Kind  TokenKind
+	Start int    // Byte offset in source
+	End   int    // Byte offset of end (exclusive)
+	Value string // For identifiers and literals
 }
 
 // Text returns the source text of the token.
@@ -312,10 +312,10 @@ var ReservedWords = map[string]bool{
 
 // Lexer tokenizes WGSL source code.
 type Lexer struct {
-	source   string
-	pos      int
-	start    int
-	tokens   []Token
+	source string
+	pos    int
+	start  int
+	tokens []Token
 
 	// Template list tracking
 	templateDepth int
@@ -475,7 +475,7 @@ func (l *Lexer) scanNumber() Token {
 
 	// Check for hex
 	if l.pos+1 < len(l.source) && l.source[l.pos] == '0' &&
-	   (l.source[l.pos+1] == 'x' || l.source[l.pos+1] == 'X') {
+		(l.source[l.pos+1] == 'x' || l.source[l.pos+1] == 'X') {
 		l.pos += 2
 		// Hex digits
 		for l.pos < len(l.source) && isHexDigit(l.source[l.pos]) {
@@ -787,7 +787,7 @@ func isIdentStartSlow(r rune) bool {
 func isIdentContinueSlow(r rune) bool {
 	// XID_Continue
 	return isIdentStartSlow(r) || unicode.Is(unicode.Other_ID_Continue, r) ||
-	       unicode.IsDigit(r) || r == '_'
+		unicode.IsDigit(r) || r == '_'
 }
 
 // isIdentStart checks if a rune can start an identifier.

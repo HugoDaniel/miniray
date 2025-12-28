@@ -133,10 +133,10 @@ func TestUnicodeIdentifiers(t *testing.T) {
 		input string
 		value string
 	}{
-		{"α", "α"},           // Greek letter
-		{"αβγ", "αβγ"},       // Greek letters
-		{"日本語", "日本語"}, // CJK characters
-		{"_über", "_über"},   // Mixed ASCII and Unicode
+		{"α", "α"},         // Greek letter
+		{"αβγ", "αβγ"},     // Greek letters
+		{"日本語", "日本語"},     // CJK characters
+		{"_über", "_über"}, // Mixed ASCII and Unicode
 	}
 
 	for _, tc := range cases {
@@ -235,10 +235,10 @@ func TestDecimalFloats(t *testing.T) {
 		{"1e+10", "1e+10"},
 		{"1e-10", "1e-10"},
 		{"1.5e10", "1.5e10"},
-		{"0.5f", "0.5f"},   // f32 suffix
-		{"0.5h", "0.5h"},   // f16 suffix
+		{"0.5f", "0.5f"}, // f32 suffix
+		{"0.5h", "0.5h"}, // f16 suffix
 		{"1.0f", "1.0f"},
-		{"1f", "1f"},       // Integer with float suffix becomes float
+		{"1f", "1f"}, // Integer with float suffix becomes float
 	}
 
 	for _, tc := range cases {
@@ -259,8 +259,8 @@ func TestHexFloats(t *testing.T) {
 		{"0x1P10", "0x1P10"},
 		{"0x1.ABCp+10", "0x1.ABCp+10"},
 		{"0x1.0p-10", "0x1.0p-10"},
-		{"0x1p0f", "0x1p0f"},   // With float suffix
-		{"0x1p0h", "0x1p0h"},   // With half suffix
+		{"0x1p0f", "0x1p0f"}, // With float suffix
+		{"0x1p0h", "0x1p0h"}, // With half suffix
 	}
 
 	for _, tc := range cases {
@@ -432,14 +432,14 @@ func TestTokenSequence(t *testing.T) {
 	input := "fn main() -> vec4f { return vec4f(1.0); }"
 	expected := []TokenKind{
 		TokFn,
-		TokIdent,     // main
+		TokIdent, // main
 		TokLParen,
 		TokRParen,
 		TokArrow,
-		TokIdent,     // vec4f
+		TokIdent, // vec4f
 		TokLBrace,
 		TokReturn,
-		TokIdent,     // vec4f
+		TokIdent, // vec4f
 		TokLParen,
 		TokFloatLiteral,
 		TokRParen,
@@ -458,25 +458,25 @@ func TestStructDeclaration(t *testing.T) {
 	}`
 	expected := []TokenKind{
 		TokStruct,
-		TokIdent,      // VertexOutput
+		TokIdent, // VertexOutput
 		TokLBrace,
 		TokAt,
-		TokIdent,      // builtin
+		TokIdent, // builtin
 		TokLParen,
-		TokIdent,      // position
+		TokIdent, // position
 		TokRParen,
-		TokIdent,      // pos
+		TokIdent, // pos
 		TokColon,
-		TokIdent,      // vec4f
+		TokIdent, // vec4f
 		TokComma,
 		TokAt,
-		TokIdent,      // location
+		TokIdent, // location
 		TokLParen,
 		TokIntLiteral, // 0
 		TokRParen,
-		TokIdent,      // color
+		TokIdent, // color
 		TokColon,
-		TokIdent,      // vec3f
+		TokIdent, // vec3f
 		TokComma,
 		TokRBrace,
 		TokEOF,
@@ -489,22 +489,22 @@ func TestVarDeclaration(t *testing.T) {
 	input := `@group(0) @binding(1) var<uniform> uniforms: Uniforms;`
 	expected := []TokenKind{
 		TokAt,
-		TokIdent,      // group
+		TokIdent, // group
 		TokLParen,
 		TokIntLiteral, // 0
 		TokRParen,
 		TokAt,
-		TokIdent,      // binding
+		TokIdent, // binding
 		TokLParen,
 		TokIntLiteral, // 1
 		TokRParen,
 		TokVar,
 		TokLt,
-		TokIdent,      // uniform
+		TokIdent, // uniform
 		TokGt,
-		TokIdent,      // uniforms
+		TokIdent, // uniforms
 		TokColon,
-		TokIdent,      // Uniforms
+		TokIdent, // Uniforms
 		TokSemicolon,
 		TokEOF,
 	}
@@ -517,9 +517,9 @@ func TestComputeShaderHeader(t *testing.T) {
 fn main(@builtin(global_invocation_id) id: vec3u) {`
 	expected := []TokenKind{
 		TokAt,
-		TokIdent,      // compute
+		TokIdent, // compute
 		TokAt,
-		TokIdent,      // workgroup_size
+		TokIdent, // workgroup_size
 		TokLParen,
 		TokIntLiteral, // 64
 		TokComma,
@@ -528,16 +528,16 @@ fn main(@builtin(global_invocation_id) id: vec3u) {`
 		TokIntLiteral, // 1
 		TokRParen,
 		TokFn,
-		TokIdent,      // main
+		TokIdent, // main
 		TokLParen,
 		TokAt,
-		TokIdent,      // builtin
+		TokIdent, // builtin
 		TokLParen,
-		TokIdent,      // global_invocation_id
+		TokIdent, // global_invocation_id
 		TokRParen,
-		TokIdent,      // id
+		TokIdent, // id
 		TokColon,
-		TokIdent,      // vec3u
+		TokIdent, // vec3u
 		TokRParen,
 		TokLBrace,
 		TokEOF,
@@ -1155,4 +1155,3 @@ func TestIdentifierStopsAtUnicodePunctuation(t *testing.T) {
 		t.Error("expected a token after identifier, got EOF")
 	}
 }
-
