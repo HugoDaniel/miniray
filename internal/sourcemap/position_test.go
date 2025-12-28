@@ -348,3 +348,150 @@ func BenchmarkByteOffsetToLineColumn(b *testing.B) {
 		idx.ByteOffsetToLineColumn(offset)
 	}
 }
+
+// ============================================================================
+// LineColumnToByteOffset Tests
+// ============================================================================
+
+func TestLineColumnToByteOffsetBasic(t *testing.T) {
+	source := "const x = 1;\nconst y = 2;\n"
+	idx := NewLineIndex(source)
+
+	tests := []struct {
+		line   int
+		col    int
+		offset int
+	}{
+		{0, 0, 0},  // Start of first line
+		{0, 6, 6},  // Middle of first line
+		{1, 0, 13}, // Start of second line
+		{1, 6, 19}, // Middle of second line
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("line%d_col%d", tt.line, tt.col), func(t *testing.T) {
+			offset := idx.LineColumnToByteOffset(tt.line, tt.col)
+			if offset != tt.offset {
+				t.Errorf("LineColumnToByteOffset(%d, %d) = %d, want %d",
+					tt.line, tt.col, offset, tt.offset)
+			}
+		})
+	}
+}
+
+func TestLineColumnToByteOffsetNegativeLine(t *testing.T) {
+	source := "abc\ndef\n"
+	idx := NewLineIndex(source)
+
+	// Negative line should clamp to 0
+	offset := idx.LineColumnToByteOffset(-1, 2)
+	if offset != 2 {
+		t.Errorf("LineColumnToByteOffset(-1, 2) = %d, want 2", offset)
+	}
+}
+
+func TestLineColumnToByteOffsetLineOutOfBounds(t *testing.T) {
+	source := "abc\ndef\n"
+	idx := NewLineIndex(source)
+
+	// Line beyond end should clamp to last line
+	offset := idx.LineColumnToByteOffset(100, 0)
+	// Last line starts at 4 ("def\n")
+	if offset != 4 {
+		t.Errorf("LineColumnToByteOffset(100, 0) = %d, want 4", offset)
+	}
+}
+
+func TestLineColumnToByteOffsetColumnOutOfBounds(t *testing.T) {
+	source := "abc"
+	idx := NewLineIndex(source)
+
+	// Column beyond source should clamp
+	offset := idx.LineColumnToByteOffset(0, 100)
+	if offset != 3 {
+		t.Errorf("LineColumnToByteOffset(0, 100) = %d, want 3", offset)
+	}
+}
+
+func TestLineColumnToByteOffsetNegativeColumn(t *testing.T) {
+	source := "abc"
+	idx := NewLineIndex(source)
+
+	// Negative column should return 0
+	offset := idx.LineColumnToByteOffset(0, -10)
+	if offset != 0 {
+		t.Errorf("LineColumnToByteOffset(0, -10) = %d, want 0", offset)
+	}
+}
+
+// ============================================================================
+// UTF-16 Column Edge Cases
+// ============================================================================
+
+func TestByteOffsetToLineColumnUTF16Negative(t *testing.T) {
+	source := "abc"
+	idx := NewLineIndex(source)
+
+	line, col := idx.ByteOffsetToLineColumnUTF16(-1)
+	if line != 0 || col != 0 {
+		t.Errorf("Negative offset: got (%d, %d), want (0, 0)", line, col)
+	}
+}
+
+func TestByteOffsetToLineColumnUTF16Empty(t *testing.T) {
+	idx := NewLineIndex("")
+
+	line, col := idx.ByteOffsetToLineColumnUTF16(0)
+	if line != 0 || col != 0 {
+		t.Errorf("Empty source: got (%d, %d), want (0, 0)", line, col)
+	}
+
+	line, col = idx.ByteOffsetToLineColumnUTF16(10)
+	if line != 0 || col != 0 {
+		t.Errorf("Empty source out of bounds: got (%d, %d), want (0, 0)", line, col)
+	}
+}
+
+func TestByteOffsetToLineColumnUTF16Clamp(t *testing.T) {
+	source := "abc"
+	idx := NewLineIndex(source)
+
+	// Offset beyond source length
+	line, col := idx.ByteOffsetToLineColumnUTF16(100)
+	if line != 0 || col != 3 {
+		t.Errorf("Out of bounds: got (%d, %d), want (0, 3)", line, col)
+	}
+}
+
+func TestUTF8ToUTF16ColumnInvalidUTF8(t *testing.T) {
+	// Invalid UTF-8 sequence should be handled gracefully
+	// \xff is not valid UTF-8
+	s := "a\xffb"
+	col := utf8ToUTF16Column(s, 2)
+	// 'a' = 1, invalid byte = 1, so offset 2 should give col 2
+	if col != 2 {
+		t.Errorf("Invalid UTF-8: col = %d, want 2", col)
+	}
+}
+
+func TestUTF8ToUTF16ColumnBoundaries(t *testing.T) {
+	s := "abc"
+
+	// Zero offset
+	col := utf8ToUTF16Column(s, 0)
+	if col != 0 {
+		t.Errorf("Zero offset: col = %d, want 0", col)
+	}
+
+	// Negative offset
+	col = utf8ToUTF16Column(s, -1)
+	if col != 0 {
+		t.Errorf("Negative offset: col = %d, want 0", col)
+	}
+
+	// Offset beyond string
+	col = utf8ToUTF16Column(s, 100)
+	if col != 3 {
+		t.Errorf("Beyond string: col = %d, want 3", col)
+	}
+}

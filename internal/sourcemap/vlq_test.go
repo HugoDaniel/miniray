@@ -302,3 +302,72 @@ func BenchmarkVLQDecode(b *testing.B) {
 		DecodeVLQ(encoded)
 	}
 }
+
+// ============================================================================
+// VLQ Edge Case Tests
+// ============================================================================
+
+func TestVLQDecodeInvalidHighByte(t *testing.T) {
+	// Input with byte >= 128 should fail
+	input := string([]byte{0x80}) // High byte
+	value, consumed := DecodeVLQ(input)
+	if consumed != 0 {
+		t.Errorf("High byte input should return 0 consumed, got %d", consumed)
+	}
+	if value != 0 {
+		t.Errorf("High byte input should return 0 value, got %d", value)
+	}
+}
+
+func TestVLQDecodeInvalidBase64Char(t *testing.T) {
+	// Characters not in base64 alphabet should fail
+	invalidChars := []string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "_"}
+	for _, ch := range invalidChars {
+		t.Run(ch, func(t *testing.T) {
+			value, consumed := DecodeVLQ(ch)
+			if consumed != 0 {
+				t.Errorf("Invalid char %q should return 0 consumed, got %d", ch, consumed)
+			}
+			if value != 0 {
+				t.Errorf("Invalid char %q should return 0 value, got %d", ch, value)
+			}
+		})
+	}
+}
+
+func TestDecodeVLQSequenceError(t *testing.T) {
+	// Request more values than available
+	input := "A" // Only has 1 value (0)
+	_, err := DecodeVLQSequence(input, 5)
+	if err == nil {
+		t.Error("Expected error when requesting more values than available")
+	}
+}
+
+func TestDecodeVLQSequenceEmpty(t *testing.T) {
+	// Empty input requesting values should error
+	_, err := DecodeVLQSequence("", 1)
+	if err == nil {
+		t.Error("Expected error when decoding empty input")
+	}
+}
+
+func TestDecodeVLQSequenceZeroValues(t *testing.T) {
+	// Request 0 values should return empty slice
+	values, err := DecodeVLQSequence("AAAA", 0)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if len(values) != 0 {
+		t.Errorf("Expected 0 values, got %d", len(values))
+	}
+}
+
+func TestDecodeVLQSequenceInvalidMiddle(t *testing.T) {
+	// Valid first value, then invalid VLQ
+	// "A" is valid (0), then "!" is invalid
+	_, err := DecodeVLQSequence("A!", 2)
+	if err == nil {
+		t.Error("Expected error for invalid VLQ in sequence")
+	}
+}

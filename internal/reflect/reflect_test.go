@@ -1946,6 +1946,359 @@ fn main() {}
 	}
 }
 
+// ----------------------------------------------------------------------------
+// Additional Layout Tests
+// ----------------------------------------------------------------------------
+
+func TestVectorElementSize(t *testing.T) {
+	tests := []struct {
+		typeName string
+		expected int
+	}{
+		{"f16", 2},
+		{"f32", 4},
+		{"i32", 4},
+		{"u32", 4},
+		{"bool", 4},
+		{"unknown", 4}, // Default
+	}
+
+	for _, tt := range tests {
+		got := vectorElementSize(tt.typeName)
+		if got != tt.expected {
+			t.Errorf("vectorElementSize(%s) = %d, want %d", tt.typeName, got, tt.expected)
+		}
+	}
+}
+
+func TestComputeVecLayoutEdgeCases(t *testing.T) {
+	// Test vec3 and vec4
+	vec3 := computeVecLayout(3, 4)
+	if vec3.Size != 12 || vec3.Alignment != 16 {
+		t.Errorf("vec3<f32>: got size=%d align=%d, want size=12 align=16", vec3.Size, vec3.Alignment)
+	}
+
+	vec4 := computeVecLayout(4, 4)
+	if vec4.Size != 16 || vec4.Alignment != 16 {
+		t.Errorf("vec4<f32>: got size=%d align=%d, want size=16 align=16", vec4.Size, vec4.Alignment)
+	}
+
+	// Invalid size should return empty layout
+	invalid := computeVecLayout(5, 4)
+	if invalid.Size != 0 || invalid.Alignment != 0 {
+		t.Errorf("vec5: got size=%d align=%d, want size=0 align=0", invalid.Size, invalid.Alignment)
+	}
+}
+
+func TestComputeMatLayout(t *testing.T) {
+	// mat2x2<f32>: 2 columns of vec2<f32> (size=8, align=8)
+	mat2x2 := computeMatLayout(2, 2, 4)
+	if mat2x2.Size != 16 || mat2x2.Alignment != 8 {
+		t.Errorf("mat2x2<f32>: got size=%d align=%d, want size=16 align=8", mat2x2.Size, mat2x2.Alignment)
+	}
+
+	// mat3x3<f32>: 3 columns of vec3<f32> (size=12, align=16)
+	mat3x3 := computeMatLayout(3, 3, 4)
+	if mat3x3.Size != 48 || mat3x3.Alignment != 16 {
+		t.Errorf("mat3x3<f32>: got size=%d align=%d, want size=48 align=16", mat3x3.Size, mat3x3.Alignment)
+	}
+
+	// mat4x4<f32>: 4 columns of vec4<f32> (size=16, align=16)
+	mat4x4 := computeMatLayout(4, 4, 4)
+	if mat4x4.Size != 64 || mat4x4.Alignment != 16 {
+		t.Errorf("mat4x4<f32>: got size=%d align=%d, want size=64 align=16", mat4x4.Size, mat4x4.Alignment)
+	}
+}
+
+func TestRoundUpZeroAlign(t *testing.T) {
+	// roundUp with align=0 should return x unchanged
+	result := roundUp(10, 0)
+	if result != 10 {
+		t.Errorf("roundUp(10, 0) = %d, want 10", result)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Texture Type String Tests
+// ----------------------------------------------------------------------------
+
+func TestAllTextureTypes(t *testing.T) {
+	tests := []struct {
+		source   string
+		expected string
+	}{
+		// 1D textures
+		{"@group(0) @binding(0) var tex: texture_1d<f32>;", "texture_1d<f32>"},
+		// 2D array textures
+		{"@group(0) @binding(0) var tex: texture_2d_array<f32>;", "texture_2d_array<f32>"},
+		// 3D textures
+		{"@group(0) @binding(0) var tex: texture_3d<f32>;", "texture_3d<f32>"},
+		// Cube textures
+		{"@group(0) @binding(0) var tex: texture_cube<f32>;", "texture_cube<f32>"},
+		// Cube array textures
+		{"@group(0) @binding(0) var tex: texture_cube_array<f32>;", "texture_cube_array<f32>"},
+		// Multisampled textures
+		{"@group(0) @binding(0) var tex: texture_multisampled_2d<f32>;", "texture_multisampled_2d"},
+		// Storage textures
+		{"@group(0) @binding(0) var tex: texture_storage_1d<rgba8unorm, write>;", "texture_storage_1d<rgba8unorm, write>"},
+		{"@group(0) @binding(0) var tex: texture_storage_2d<rgba8unorm, write>;", "texture_storage_2d<rgba8unorm, write>"},
+		{"@group(0) @binding(0) var tex: texture_storage_2d_array<rgba8unorm, write>;", "texture_storage_2d_array<rgba8unorm, write>"},
+		{"@group(0) @binding(0) var tex: texture_storage_3d<rgba8unorm, write>;", "texture_storage_3d<rgba8unorm, write>"},
+		// Depth textures
+		{"@group(0) @binding(0) var tex: texture_depth_2d;", "texture_depth_2d"},
+		{"@group(0) @binding(0) var tex: texture_depth_2d_array;", "texture_depth_2d_array"},
+		{"@group(0) @binding(0) var tex: texture_depth_cube;", "texture_depth_cube"},
+		{"@group(0) @binding(0) var tex: texture_depth_cube_array;", "texture_depth_cube_array"},
+		{"@group(0) @binding(0) var tex: texture_depth_multisampled_2d;", "texture_depth_multisampled_2d"},
+		// External texture
+		{"@group(0) @binding(0) var tex: texture_external;", "texture_external"},
+	}
+
+	for _, tt := range tests {
+		result := Reflect(tt.source)
+		if len(result.Errors) > 0 {
+			t.Fatalf("%s: unexpected errors: %v", tt.expected, result.Errors)
+		}
+		if len(result.Bindings) != 1 {
+			t.Fatalf("%s: expected 1 binding, got %d", tt.expected, len(result.Bindings))
+		}
+		if result.Bindings[0].Type != tt.expected {
+			t.Errorf("expected type '%s', got '%s'", tt.expected, result.Bindings[0].Type)
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Handle Type Tests
+// ----------------------------------------------------------------------------
+
+func TestHandleTypes(t *testing.T) {
+	// Sampler comparison
+	source := `@group(0) @binding(0) var s: sampler_comparison;`
+	result := Reflect(source)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	if len(result.Bindings) != 1 {
+		t.Fatalf("expected 1 binding, got %d", len(result.Bindings))
+	}
+
+	if result.Bindings[0].Type != "sampler_comparison" {
+		t.Errorf("expected type 'sampler_comparison', got '%s'", result.Bindings[0].Type)
+	}
+	if result.Bindings[0].AddressSpace != "handle" {
+		t.Errorf("expected addressSpace 'handle', got '%s'", result.Bindings[0].AddressSpace)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Workgroup Size Edge Cases
+// ----------------------------------------------------------------------------
+
+func TestWorkgroupSizeVariants(t *testing.T) {
+	tests := []struct {
+		source   string
+		expected []int
+	}{
+		{`@compute @workgroup_size(1) fn main() {}`, []int{1, 1, 1}},
+		{`@compute @workgroup_size(64) fn main() {}`, []int{64, 1, 1}},
+		{`@compute @workgroup_size(8, 8) fn main() {}`, []int{8, 8, 1}},
+		{`@compute @workgroup_size(4, 4, 4) fn main() {}`, []int{4, 4, 4}},
+	}
+
+	for _, tt := range tests {
+		result := Reflect(tt.source)
+		if len(result.Errors) > 0 {
+			t.Fatalf("%s: unexpected errors: %v", tt.source, result.Errors)
+		}
+		if len(result.EntryPoints) != 1 {
+			t.Fatalf("%s: expected 1 entry point, got %d", tt.source, len(result.EntryPoints))
+		}
+		ep := result.EntryPoints[0]
+		if len(ep.WorkgroupSize) != 3 {
+			t.Errorf("%s: expected workgroup size length 3, got %d", tt.source, len(ep.WorkgroupSize))
+		}
+		for i, expected := range tt.expected {
+			if ep.WorkgroupSize[i] != expected {
+				t.Errorf("%s: workgroup size[%d] = %d, want %d", tt.source, i, ep.WorkgroupSize[i], expected)
+			}
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Generic Type Tests (vec<T>, mat<T>, etc.)
+// ----------------------------------------------------------------------------
+
+func TestGenericVectorTypes(t *testing.T) {
+	// Test generic vector syntax
+	tests := []struct {
+		source string
+		field  string
+		size   int
+		align  int
+	}{
+		{`struct S { v: vec2<f32> } @group(0) @binding(0) var<uniform> u: S;`, "v", 8, 8},
+		{`struct S { v: vec3<f32> } @group(0) @binding(0) var<uniform> u: S;`, "v", 12, 16},
+		{`struct S { v: vec4<f32> } @group(0) @binding(0) var<uniform> u: S;`, "v", 16, 16},
+		{`struct S { v: vec2<i32> } @group(0) @binding(0) var<uniform> u: S;`, "v", 8, 8},
+		{`struct S { v: vec3<u32> } @group(0) @binding(0) var<uniform> u: S;`, "v", 12, 16},
+		{`struct S { v: vec4<bool> } @group(0) @binding(0) var<uniform> u: S;`, "v", 16, 16},
+		// f16 vectors
+		{`struct S { v: vec2<f16> } @group(0) @binding(0) var<uniform> u: S;`, "v", 4, 4},
+		{`struct S { v: vec3<f16> } @group(0) @binding(0) var<uniform> u: S;`, "v", 6, 8},
+		{`struct S { v: vec4<f16> } @group(0) @binding(0) var<uniform> u: S;`, "v", 8, 8},
+	}
+
+	for _, tt := range tests {
+		result := Reflect(tt.source)
+		if len(result.Errors) > 0 {
+			t.Fatalf("%s: unexpected errors: %v", tt.source, result.Errors)
+		}
+		if len(result.Bindings) != 1 {
+			t.Fatalf("%s: expected 1 binding, got %d", tt.source, len(result.Bindings))
+		}
+		layout := result.Bindings[0].Layout
+		if layout == nil {
+			t.Fatalf("%s: expected layout", tt.source)
+		}
+		if len(layout.Fields) != 1 {
+			t.Fatalf("%s: expected 1 field", tt.source)
+		}
+		field := layout.Fields[0]
+		if field.Size != tt.size {
+			t.Errorf("%s: field size = %d, want %d", tt.source, field.Size, tt.size)
+		}
+		if field.Alignment != tt.align {
+			t.Errorf("%s: field align = %d, want %d", tt.source, field.Alignment, tt.align)
+		}
+	}
+}
+
+func TestGenericMatrixTypes(t *testing.T) {
+	// Test generic matrix syntax
+	tests := []struct {
+		source string
+		field  string
+		size   int
+		align  int
+	}{
+		{`struct S { m: mat2x2<f32> } @group(0) @binding(0) var<uniform> u: S;`, "m", 16, 8},
+		{`struct S { m: mat3x3<f32> } @group(0) @binding(0) var<uniform> u: S;`, "m", 48, 16},
+		{`struct S { m: mat4x4<f32> } @group(0) @binding(0) var<uniform> u: S;`, "m", 64, 16},
+		{`struct S { m: mat2x3<f32> } @group(0) @binding(0) var<uniform> u: S;`, "m", 32, 16},
+		{`struct S { m: mat3x4<f32> } @group(0) @binding(0) var<uniform> u: S;`, "m", 48, 16},
+	}
+
+	for _, tt := range tests {
+		result := Reflect(tt.source)
+		if len(result.Errors) > 0 {
+			t.Fatalf("%s: unexpected errors: %v", tt.source, result.Errors)
+		}
+		if len(result.Bindings) != 1 {
+			t.Fatalf("%s: expected 1 binding, got %d", tt.source, len(result.Bindings))
+		}
+		layout := result.Bindings[0].Layout
+		if layout == nil {
+			t.Fatalf("%s: expected layout", tt.source)
+		}
+		if len(layout.Fields) != 1 {
+			t.Fatalf("%s: expected 1 field", tt.source)
+		}
+		field := layout.Fields[0]
+		if field.Size != tt.size {
+			t.Errorf("%s: field size = %d, want %d", tt.source, field.Size, tt.size)
+		}
+		if field.Alignment != tt.align {
+			t.Errorf("%s: field align = %d, want %d", tt.source, field.Alignment, tt.align)
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Pointer Type Tests
+// ----------------------------------------------------------------------------
+
+func TestPointerTypeInStruct(t *testing.T) {
+	// Pointer types in structs should use element type layout
+	// (In WGSL, ptr types are not directly stored in uniform/storage buffers,
+	// but we test the layout computation handles them)
+	source := `struct S { p: ptr<function, f32> }`
+	result := Reflect(source)
+
+	// This should parse but ptr types don't have uniform/storage layout
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	layout, ok := result.Structs["S"]
+	if !ok {
+		t.Fatal("expected S struct")
+	}
+	if len(layout.Fields) != 1 {
+		t.Fatalf("expected 1 field, got %d", len(layout.Fields))
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Atomic Type Tests
+// ----------------------------------------------------------------------------
+
+func TestAtomicTypes(t *testing.T) {
+	source := `struct S { a: atomic<u32>, b: atomic<i32> }
+	@group(0) @binding(0) var<storage, read_write> s: S;`
+	result := Reflect(source)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	if len(result.Bindings) != 1 {
+		t.Fatalf("expected 1 binding, got %d", len(result.Bindings))
+	}
+
+	layout := result.Bindings[0].Layout
+	if layout == nil {
+		t.Fatal("expected layout")
+	}
+
+	// atomic<u32> and atomic<i32> both have size=4, align=4
+	if len(layout.Fields) != 2 {
+		t.Fatalf("expected 2 fields, got %d", len(layout.Fields))
+	}
+
+	for i, field := range layout.Fields {
+		if field.Size != 4 {
+			t.Errorf("field %d size = %d, want 4", i, field.Size)
+		}
+		if field.Alignment != 4 {
+			t.Errorf("field %d align = %d, want 4", i, field.Alignment)
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Edge Cases
+// ----------------------------------------------------------------------------
+
+func TestEmptyShader(t *testing.T) {
+	result := Reflect("")
+
+	// Empty shader should not error
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors for empty shader: %v", result.Errors)
+	}
+
+	if len(result.Bindings) != 0 {
+		t.Errorf("expected 0 bindings, got %d", len(result.Bindings))
+	}
+	if len(result.EntryPoints) != 0 {
+		t.Errorf("expected 0 entry points, got %d", len(result.EntryPoints))
+	}
+}
+
 func TestMappedNamesNestedArray(t *testing.T) {
 	source := `
 struct Inner {

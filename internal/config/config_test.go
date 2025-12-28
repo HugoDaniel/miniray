@@ -240,3 +240,125 @@ func TestConfigFileNames(t *testing.T) {
 		t.Errorf("MangleExternalBindings: got %v, want false (from wgslmin.json)", cfg.MangleExternalBindings)
 	}
 }
+
+func TestLoadFileNotFound(t *testing.T) {
+	_, err := LoadFile("/non/existent/path/config.json")
+	if err == nil {
+		t.Error("expected error for non-existent file")
+	}
+}
+
+func TestLoadFileInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "invalid.json")
+
+	if err := os.WriteFile(configPath, []byte("not valid json"), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+
+	_, err := LoadFile(configPath)
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestToOptionsAllFields(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	cfg := &Config{
+		MinifyWhitespace:           &trueVal,
+		MinifyIdentifiers:          &falseVal,
+		MinifySyntax:               &trueVal,
+		MangleProps:                &trueVal,
+		MangleExternalBindings:     &trueVal,
+		TreeShaking:                &falseVal,
+		PreserveUniformStructTypes: &trueVal,
+		KeepNames:                  []string{"name1"},
+	}
+
+	opts := cfg.ToOptions()
+
+	if opts.MinifyWhitespace != true {
+		t.Errorf("MinifyWhitespace: got %v, want true", opts.MinifyWhitespace)
+	}
+	if opts.MinifyIdentifiers != false {
+		t.Errorf("MinifyIdentifiers: got %v, want false", opts.MinifyIdentifiers)
+	}
+	if opts.MinifySyntax != true {
+		t.Errorf("MinifySyntax: got %v, want true", opts.MinifySyntax)
+	}
+	if opts.MangleProps != true {
+		t.Errorf("MangleProps: got %v, want true", opts.MangleProps)
+	}
+	if opts.MangleExternalBindings != true {
+		t.Errorf("MangleExternalBindings: got %v, want true", opts.MangleExternalBindings)
+	}
+	if opts.TreeShaking != false {
+		t.Errorf("TreeShaking: got %v, want false", opts.TreeShaking)
+	}
+	if opts.PreserveUniformStructTypes != true {
+		t.Errorf("PreserveUniformStructTypes: got %v, want true", opts.PreserveUniformStructTypes)
+	}
+	if len(opts.KeepNames) != 1 || opts.KeepNames[0] != "name1" {
+		t.Errorf("KeepNames: got %v, want [name1]", opts.KeepNames)
+	}
+}
+
+func TestMergeAllFields(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	// Config with some values
+	cfg := &Config{
+		MinifyWhitespace:  &falseVal,
+		MinifyIdentifiers: &falseVal,
+	}
+
+	// CLI overrides all
+	cliOpts := MergeOptions{
+		MinifyWhitespace:           &trueVal,
+		MinifyIdentifiers:          &trueVal,
+		MinifySyntax:               &falseVal,
+		MangleExternalBindings:     &trueVal,
+		PreserveUniformStructTypes: &trueVal,
+		NoMangle:                   false,
+		NoTreeShaking:              true,
+		KeepNames:                  []string{"cli1"},
+	}
+
+	opts := cfg.Merge(cliOpts)
+
+	if opts.MinifyWhitespace != true {
+		t.Errorf("MinifyWhitespace: got %v, want true", opts.MinifyWhitespace)
+	}
+	if opts.MinifyIdentifiers != true {
+		t.Errorf("MinifyIdentifiers: got %v, want true", opts.MinifyIdentifiers)
+	}
+	if opts.MinifySyntax != false {
+		t.Errorf("MinifySyntax: got %v, want false", opts.MinifySyntax)
+	}
+	if opts.MangleExternalBindings != true {
+		t.Errorf("MangleExternalBindings: got %v, want true", opts.MangleExternalBindings)
+	}
+	if opts.PreserveUniformStructTypes != true {
+		t.Errorf("PreserveUniformStructTypes: got %v, want true", opts.PreserveUniformStructTypes)
+	}
+	if opts.TreeShaking != false {
+		t.Errorf("TreeShaking: got %v, want false (NoTreeShaking)", opts.TreeShaking)
+	}
+}
+
+func TestToOptionsEmptyKeepNames(t *testing.T) {
+	// Empty config should use defaults
+	cfg := &Config{}
+	opts := cfg.ToOptions()
+
+	// All defaults from minifier.DefaultOptions()
+	if opts.MinifyWhitespace != true {
+		t.Errorf("MinifyWhitespace: got %v, want true (default)", opts.MinifyWhitespace)
+	}
+	if opts.MinifyIdentifiers != true {
+		t.Errorf("MinifyIdentifiers: got %v, want true (default)", opts.MinifyIdentifiers)
+	}
+}

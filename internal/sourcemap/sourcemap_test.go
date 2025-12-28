@@ -493,3 +493,112 @@ func BenchmarkGeneratorGenerate(b *testing.B) {
 		g.Generate()
 	}
 }
+
+// ============================================================================
+// ToComment Tests
+// ============================================================================
+
+func TestToCommentInline(t *testing.T) {
+	g := NewGenerator("const x = 1;")
+	g.SetFile("test.wgsl")
+	sm := g.Generate()
+
+	comment := sm.ToComment(true)
+
+	// Should start with sourceMappingURL
+	if !strings.HasPrefix(comment, "//# sourceMappingURL=data:application/json;base64,") {
+		t.Errorf("Inline comment should have data URI, got: %s", comment)
+	}
+}
+
+func TestToCommentExternal(t *testing.T) {
+	g := NewGenerator("const x = 1;")
+	g.SetFile("test.wgsl")
+	sm := g.Generate()
+
+	comment := sm.ToComment(false)
+
+	expected := "//# sourceMappingURL=test.wgsl.map"
+	if comment != expected {
+		t.Errorf("External comment = %q, want %q", comment, expected)
+	}
+}
+
+// ============================================================================
+// DecodeMappings Edge Cases
+// ============================================================================
+
+func TestDecodeMappingsEmptySegment(t *testing.T) {
+	// Empty segments should be skipped
+	decoded, err := DecodeMappings("AAAA,,CACA")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(decoded) != 2 {
+		t.Errorf("Expected 2 mappings, got %d", len(decoded))
+	}
+}
+
+func TestDecodeMappingsEmptyLines(t *testing.T) {
+	// Empty lines (just semicolons) should increment line counter
+	decoded, err := DecodeMappings("AAAA;;;CACA")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(decoded) != 2 {
+		t.Fatalf("Expected 2 mappings, got %d", len(decoded))
+	}
+	// First mapping on line 0
+	if decoded[0].GenLine != 0 {
+		t.Errorf("First mapping GenLine = %d, want 0", decoded[0].GenLine)
+	}
+	// Second mapping on line 3 (skipped 1 and 2)
+	if decoded[1].GenLine != 3 {
+		t.Errorf("Second mapping GenLine = %d, want 3", decoded[1].GenLine)
+	}
+}
+
+func TestDecodeMappingsWithName(t *testing.T) {
+	// Segment with 5 values includes name index
+	// AAAA,CACAA = col 0, src 0,0,0, then col 1, src 0,1,0, name 0
+	decoded, err := DecodeMappings("AAAAA,CACAA")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(decoded) != 2 {
+		t.Fatalf("Expected 2 mappings, got %d", len(decoded))
+	}
+	// First should have name index 0
+	if !decoded[0].HasName || decoded[0].NameIndex != 0 {
+		t.Errorf("First mapping: HasName=%v, NameIndex=%d, want HasName=true, NameIndex=0",
+			decoded[0].HasName, decoded[0].NameIndex)
+	}
+}
+
+func TestDecodeMappingsInvalidVLQ(t *testing.T) {
+	// Segment with invalid VLQ should be skipped
+	// Using a truncated continuation sequence
+	decoded, err := DecodeMappings("g,AAAA") // 'g' has continuation bit, no follow-up
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// The 'g' segment should be skipped, AAAA should be decoded
+	if len(decoded) != 1 {
+		t.Fatalf("Expected 1 mapping, got %d", len(decoded))
+	}
+}
+
+func TestDecodeMappingsSegmentWithOnlyCol(t *testing.T) {
+	// Segment with only 1 value (just column, no source info)
+	decoded, err := DecodeMappings("C")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(decoded) != 1 {
+		t.Fatalf("Expected 1 mapping, got %d", len(decoded))
+	}
+	// Should have GenCol = 1, but no source info
+	if decoded[0].GenCol != 1 {
+		t.Errorf("GenCol = %d, want 1", decoded[0].GenCol)
+	}
+}

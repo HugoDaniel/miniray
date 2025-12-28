@@ -762,3 +762,397 @@ func BenchmarkLexerComments(b *testing.B) {
 		_ = l.Tokenize()
 	}
 }
+
+// ----------------------------------------------------------------------------
+// TokenKind.String() Tests
+// ----------------------------------------------------------------------------
+
+func TestTokenKindString(t *testing.T) {
+	cases := []struct {
+		kind     TokenKind
+		expected string
+	}{
+		{TokEOF, "EOF"},
+		{TokError, "error"},
+		{TokIntLiteral, "int"},
+		{TokFloatLiteral, "float"},
+		{TokIdent, "identifier"},
+		{TokFn, "fn"},
+		{TokLet, "let"},
+		{TokVar, "var"},
+		{TokStruct, "struct"},
+		{TokReturn, "return"},
+		{TokPlus, "+"},
+		{TokMinus, "-"},
+		{TokStar, "*"},
+		{TokArrow, "->"},
+		{TokLParen, "("},
+		{TokRParen, ")"},
+		{TokTemplateArgsStart, "<template"},
+		{TokTemplateArgsEnd, "template>"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.expected, func(t *testing.T) {
+			got := tc.kind.String()
+			if got != tc.expected {
+				t.Errorf("TokenKind(%d).String() = %q, want %q", tc.kind, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestTokenKindStringUnknown(t *testing.T) {
+	// Test with an out-of-range TokenKind
+	unknownKind := TokenKind(255)
+	got := unknownKind.String()
+	if got != "unknown" {
+		t.Errorf("TokenKind(255).String() = %q, want %q", got, "unknown")
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Token.Text() Tests
+// ----------------------------------------------------------------------------
+
+func TestTokenText(t *testing.T) {
+	source := "fn main() { return 42; }"
+	l := New(source)
+
+	// Get the "fn" token
+	tok := l.Next()
+	if tok.Kind != TokFn {
+		t.Fatalf("expected TokFn, got %v", tok.Kind)
+	}
+	text := tok.Text(source)
+	if text != "fn" {
+		t.Errorf("Token.Text() = %q, want %q", text, "fn")
+	}
+
+	// Get "main" identifier
+	tok = l.Next()
+	text = tok.Text(source)
+	if text != "main" {
+		t.Errorf("Token.Text() = %q, want %q", text, "main")
+	}
+}
+
+func TestTokenTextInvalidBounds(t *testing.T) {
+	source := "test"
+	tok := Token{Kind: TokIdent, Start: -1, End: 10, Value: "test"}
+	text := tok.Text(source)
+	if text != "" {
+		t.Errorf("Token.Text() with invalid start should return empty, got %q", text)
+	}
+
+	tok = Token{Kind: TokIdent, Start: 0, End: 100, Value: "test"}
+	text = tok.Text(source)
+	if text != "" {
+		t.Errorf("Token.Text() with end > len should return empty, got %q", text)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Tokenize() Tests
+// ----------------------------------------------------------------------------
+
+func TestTokenize(t *testing.T) {
+	source := "let x = 1;"
+	l := New(source)
+	tokens := l.Tokenize()
+
+	expected := []TokenKind{
+		TokLet,
+		TokIdent,
+		TokEq,
+		TokIntLiteral,
+		TokSemicolon,
+		TokEOF,
+	}
+
+	if len(tokens) != len(expected) {
+		t.Fatalf("Tokenize() returned %d tokens, want %d", len(tokens), len(expected))
+	}
+
+	for i, tok := range tokens {
+		if tok.Kind != expected[i] {
+			t.Errorf("tokens[%d].Kind = %v, want %v", i, tok.Kind, expected[i])
+		}
+	}
+}
+
+func TestTokenizeWithError(t *testing.T) {
+	// Double underscore prefix is an error
+	source := "__invalid"
+	l := New(source)
+	tokens := l.Tokenize()
+
+	// Should stop at error
+	if len(tokens) == 0 {
+		t.Fatal("Tokenize() returned empty slice")
+	}
+	lastTok := tokens[len(tokens)-1]
+	if lastTok.Kind != TokError {
+		t.Errorf("last token should be TokError, got %v", lastTok.Kind)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Edge Cases for Operators
+// ----------------------------------------------------------------------------
+
+func TestUnknownCharacter(t *testing.T) {
+	// Characters that aren't valid WGSL operators
+	invalidChars := []string{"$", "#", "`", "\\", "\"", "'"}
+	for _, ch := range invalidChars {
+		t.Run(ch, func(t *testing.T) {
+			l := New(ch)
+			tok := l.Next()
+			if tok.Kind != TokError {
+				t.Errorf("input %q: expected TokError, got %v", ch, tok.Kind)
+			}
+		})
+	}
+}
+
+func TestQuestionMark(t *testing.T) {
+	// ? is not a valid WGSL operator
+	l := New("?")
+	tok := l.Next()
+	if tok.Kind != TokError {
+		t.Errorf("expected TokError for '?', got %v", tok.Kind)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Helper Function Tests
+// ----------------------------------------------------------------------------
+
+func TestIsWhitespace(t *testing.T) {
+	whitespace := []byte{' ', '\t', '\n', '\r', '\v', '\f'}
+	for _, ch := range whitespace {
+		if !isWhitespace(ch) {
+			t.Errorf("isWhitespace(%q) = false, want true", ch)
+		}
+	}
+
+	nonWhitespace := []byte{'a', '0', '+', '@'}
+	for _, ch := range nonWhitespace {
+		if isWhitespace(ch) {
+			t.Errorf("isWhitespace(%q) = true, want false", ch)
+		}
+	}
+
+	// Non-ASCII byte should return false
+	if isWhitespace(0x80) {
+		t.Error("isWhitespace(0x80) = true, want false")
+	}
+}
+
+func TestIsASCIIIdentStart(t *testing.T) {
+	// Valid starts: a-z, A-Z, _
+	validStarts := []byte{'a', 'z', 'A', 'Z', '_'}
+	for _, ch := range validStarts {
+		if !isASCIIIdentStart(ch) {
+			t.Errorf("isASCIIIdentStart(%q) = false, want true", ch)
+		}
+	}
+
+	// Invalid starts: digits, operators, etc.
+	invalidStarts := []byte{'0', '9', '+', '-', ' ', '@'}
+	for _, ch := range invalidStarts {
+		if isASCIIIdentStart(ch) {
+			t.Errorf("isASCIIIdentStart(%q) = true, want false", ch)
+		}
+	}
+
+	// Non-ASCII byte should return false
+	if isASCIIIdentStart(0x80) {
+		t.Error("isASCIIIdentStart(0x80) = true, want false")
+	}
+}
+
+func TestIsASCIIIdentContinue(t *testing.T) {
+	// Valid continues: a-z, A-Z, 0-9, _
+	validContinues := []byte{'a', 'z', 'A', 'Z', '0', '9', '_'}
+	for _, ch := range validContinues {
+		if !isASCIIIdentContinue(ch) {
+			t.Errorf("isASCIIIdentContinue(%q) = false, want true", ch)
+		}
+	}
+
+	// Invalid continues: operators, etc.
+	invalidContinues := []byte{'+', '-', ' ', '@', '.'}
+	for _, ch := range invalidContinues {
+		if isASCIIIdentContinue(ch) {
+			t.Errorf("isASCIIIdentContinue(%q) = true, want false", ch)
+		}
+	}
+
+	// Non-ASCII byte should return false
+	if isASCIIIdentContinue(0x80) {
+		t.Error("isASCIIIdentContinue(0x80) = true, want false")
+	}
+}
+
+func TestIsIdentContinue(t *testing.T) {
+	// ASCII cases
+	if !isIdentContinue('a') {
+		t.Error("isIdentContinue('a') = false, want true")
+	}
+	if !isIdentContinue('0') {
+		t.Error("isIdentContinue('0') = false, want true")
+	}
+	if isIdentContinue('+') {
+		t.Error("isIdentContinue('+') = true, want false")
+	}
+
+	// Unicode cases
+	if !isIdentContinue('α') {
+		t.Error("isIdentContinue('α') = false, want true")
+	}
+	if !isIdentContinue('日') {
+		t.Error("isIdentContinue('日') = false, want true")
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Additional Edge Cases
+// ----------------------------------------------------------------------------
+
+func TestOperatorAtEndOfInput(t *testing.T) {
+	// Operators at end of input (no next char)
+	singleOps := []struct {
+		input string
+		kind  TokenKind
+	}{
+		{"+", TokPlus},
+		{"-", TokMinus},
+		{"*", TokStar},
+		{"/", TokSlash},
+		{"%", TokPercent},
+		{"&", TokAmp},
+		{"|", TokPipe},
+		{"^", TokCaret},
+		{"<", TokLt},
+		{">", TokGt},
+		{"=", TokEq},
+		{"!", TokBang},
+	}
+
+	for _, tc := range singleOps {
+		t.Run(tc.input, func(t *testing.T) {
+			l := New(tc.input)
+			tok := l.Next()
+			if tok.Kind != tc.kind {
+				t.Errorf("input %q: expected %v, got %v", tc.input, tc.kind, tok.Kind)
+			}
+		})
+	}
+}
+
+func TestComplexNumberSequences(t *testing.T) {
+	// Various number formats that might hit edge cases
+	cases := []struct {
+		input string
+		kind  TokenKind
+		value string
+	}{
+		// Leading zeros
+		{"00", TokIntLiteral, "00"},
+		{"007", TokIntLiteral, "007"},
+		// Exponent edge cases
+		{"1e0", TokFloatLiteral, "1e0"},
+		{"1E0", TokFloatLiteral, "1E0"},
+		// Hex edge cases
+		{"0x0", TokIntLiteral, "0x0"},
+		{"0X0", TokIntLiteral, "0X0"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			l := New(tc.input)
+			tok := l.Next()
+			if tok.Kind != tc.kind {
+				t.Errorf("input %q: expected kind %v, got %v", tc.input, tc.kind, tok.Kind)
+			}
+			if tok.Value != tc.value {
+				t.Errorf("input %q: expected value %q, got %q", tc.input, tc.value, tok.Value)
+			}
+		})
+	}
+}
+
+func TestUnicodeIdentifierContinuation(t *testing.T) {
+	// Test identifiers with Unicode continuation characters
+	cases := []struct {
+		input string
+		value string
+	}{
+		{"a日本", "a日本"},
+		{"test_α", "test_α"},
+		{"über123", "über123"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			l := New(tc.input)
+			tok := l.Next()
+			if tok.Kind != TokIdent {
+				t.Errorf("expected TokIdent, got %v", tok.Kind)
+			}
+			if tok.Value != tc.value {
+				t.Errorf("expected value %q, got %q", tc.value, tok.Value)
+			}
+		})
+	}
+}
+
+func TestIdentifierStopsAtInvalidUnicode(t *testing.T) {
+	// Test that identifier scanning stops at invalid Unicode continuation
+	// Using a space which breaks the identifier
+	input := "foo bar"
+	l := New(input)
+
+	tok := l.Next()
+	if tok.Kind != TokIdent {
+		t.Errorf("expected TokIdent, got %v", tok.Kind)
+	}
+	if tok.Value != "foo" {
+		t.Errorf("expected value %q, got %q", "foo", tok.Value)
+	}
+
+	// Next should be "bar"
+	tok = l.Next()
+	if tok.Kind != TokIdent {
+		t.Errorf("expected TokIdent, got %v", tok.Kind)
+	}
+	if tok.Value != "bar" {
+		t.Errorf("expected value %q, got %q", "bar", tok.Value)
+	}
+}
+
+func TestIdentifierStopsAtUnicodePunctuation(t *testing.T) {
+	// Test that identifier scanning stops at Unicode punctuation
+	// Using Japanese period which is not a valid identifier character
+	input := "日本。語"
+	l := New(input)
+
+	tok := l.Next()
+	if tok.Kind != TokIdent {
+		t.Errorf("expected TokIdent, got %v", tok.Kind)
+	}
+	if tok.Value != "日本" {
+		t.Errorf("expected value %q, got %q", "日本", tok.Value)
+	}
+
+	// The Japanese period 。 triggers the !isIdentContinueSlow branch
+	// which causes a break from the identifier scanning loop
+	// It's then scanned as an operator and produces an error or identifier
+	tok = l.Next()
+	// Just verify we got a token (actual behavior may vary)
+	if tok.Kind == TokEOF {
+		t.Error("expected a token after identifier, got EOF")
+	}
+}
+

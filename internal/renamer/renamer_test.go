@@ -2,6 +2,8 @@ package renamer
 
 import (
 	"testing"
+
+	"github.com/HugoDaniel/miniray/internal/ast"
 )
 
 // ----------------------------------------------------------------------------
@@ -252,12 +254,46 @@ func TestShuffleByCharFreq(t *testing.T) {
 // ----------------------------------------------------------------------------
 
 func TestNoOpRenamer(t *testing.T) {
-	// This is a simple test since NoOpRenamer just returns original names
-	// We'd need actual symbols to test it properly
+	symbols := []ast.Symbol{
+		{OriginalName: "myFunction"},
+		{OriginalName: "myVariable"},
+		{OriginalName: "myStruct"},
+	}
+
+	r := NewNoOpRenamer(symbols)
+
+	// Test valid refs
+	if name := r.NameForSymbol(ast.Ref{InnerIndex: 0}); name != "myFunction" {
+		t.Errorf("NameForSymbol(0) = %q, want %q", name, "myFunction")
+	}
+	if name := r.NameForSymbol(ast.Ref{InnerIndex: 1}); name != "myVariable" {
+		t.Errorf("NameForSymbol(1) = %q, want %q", name, "myVariable")
+	}
+	if name := r.NameForSymbol(ast.Ref{InnerIndex: 2}); name != "myStruct" {
+		t.Errorf("NameForSymbol(2) = %q, want %q", name, "myStruct")
+	}
+}
+
+func TestNoOpRenamerInvalidRef(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "test"},
+	}
+
+	r := NewNoOpRenamer(symbols)
+
+	// Test invalid ref
+	if name := r.NameForSymbol(ast.InvalidRef()); name != "" {
+		t.Errorf("NameForSymbol(invalid) = %q, want empty string", name)
+	}
+
+	// Test out of bounds ref
+	if name := r.NameForSymbol(ast.Ref{InnerIndex: 999}); name != "" {
+		t.Errorf("NameForSymbol(out of bounds) = %q, want empty string", name)
+	}
 }
 
 // ----------------------------------------------------------------------------
-// Integration Tests
+// MinifyRenamer Tests
 // ----------------------------------------------------------------------------
 
 func TestMinifyRenamerBasic(t *testing.T) {
@@ -267,6 +303,205 @@ func TestMinifyRenamerBasic(t *testing.T) {
 	// Just verify we can create a renamer
 	_ = NewMinifyRenamer(nil, reserved)
 }
+
+func TestMinifyRenamerFullWorkflow(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "frequentlyUsed"},
+		{OriginalName: "lessUsed"},
+		{OriginalName: "rarelyUsed"},
+		{OriginalName: "entryPoint", Flags: ast.MustNotBeRenamed},
+	}
+
+	reserved := ComputeReservedNames()
+	r := NewMinifyRenamer(symbols, reserved)
+
+	// Accumulate use counts
+	uses := map[ast.Ref]uint32{
+		{InnerIndex: 0}: 100, // frequentlyUsed
+		{InnerIndex: 1}: 10,  // lessUsed
+		{InnerIndex: 2}: 1,   // rarelyUsed
+		{InnerIndex: 3}: 50,  // entryPoint (should be skipped)
+	}
+	r.AccumulateSymbolUseCounts(uses)
+
+	// Allocate slots
+	r.AllocateSlots()
+
+	// Assign names
+	r.AssignNames()
+
+	// Most frequently used should get shortest name 'a'
+	name0 := r.NameForSymbol(ast.Ref{InnerIndex: 0})
+	if name0 != "a" {
+		t.Errorf("frequentlyUsed should get 'a', got %q", name0)
+	}
+
+	// Less used should get 'b'
+	name1 := r.NameForSymbol(ast.Ref{InnerIndex: 1})
+	if name1 != "b" {
+		t.Errorf("lessUsed should get 'b', got %q", name1)
+	}
+
+	// Rarely used should get 'c'
+	name2 := r.NameForSymbol(ast.Ref{InnerIndex: 2})
+	if name2 != "c" {
+		t.Errorf("rarelyUsed should get 'c', got %q", name2)
+	}
+
+	// Entry point should keep original name
+	name3 := r.NameForSymbol(ast.Ref{InnerIndex: 3})
+	if name3 != "entryPoint" {
+		t.Errorf("entryPoint should keep original name, got %q", name3)
+	}
+}
+
+func TestMinifyRenamerAccumulateSkipsInvalidRef(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "test"},
+	}
+
+	reserved := ComputeReservedNames()
+	r := NewMinifyRenamer(symbols, reserved)
+
+	// Accumulate with invalid ref - should not panic
+	uses := map[ast.Ref]uint32{
+		ast.InvalidRef():   10,
+		{InnerIndex: 999}:  5, // out of bounds
+		{InnerIndex: 0}:    1, // valid
+	}
+	r.AccumulateSymbolUseCounts(uses)
+
+	// Only valid ref should have been counted
+	if symbols[0].UseCount != 1 {
+		t.Errorf("expected UseCount = 1, got %d", symbols[0].UseCount)
+	}
+}
+
+func TestMinifyRenamerNameForSymbolInvalidRef(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "test"},
+	}
+
+	reserved := ComputeReservedNames()
+	r := NewMinifyRenamer(symbols, reserved)
+
+	// Invalid ref should return empty string
+	if name := r.NameForSymbol(ast.InvalidRef()); name != "" {
+		t.Errorf("NameForSymbol(invalid) = %q, want empty string", name)
+	}
+
+	// Out of bounds ref should return empty string
+	if name := r.NameForSymbol(ast.Ref{InnerIndex: 999}); name != "" {
+		t.Errorf("NameForSymbol(out of bounds) = %q, want empty string", name)
+	}
+}
+
+func TestMinifyRenamerSymbolWithoutSlot(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "test"},
+	}
+
+	reserved := ComputeReservedNames()
+	r := NewMinifyRenamer(symbols, reserved)
+
+	// Symbol not in slots should return original name
+	name := r.NameForSymbol(ast.Ref{InnerIndex: 0})
+	if name != "test" {
+		t.Errorf("NameForSymbol for symbol without slot should return original, got %q", name)
+	}
+}
+
+func TestMinifyRenamerSkipsReservedNames(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "test"},
+	}
+
+	// Create reserved names that include 'a' and 'b'
+	reserved := map[string]bool{
+		"a": true,
+		"b": true,
+	}
+
+	r := NewMinifyRenamer(symbols, reserved)
+
+	uses := map[ast.Ref]uint32{
+		{InnerIndex: 0}: 1,
+	}
+	r.AccumulateSymbolUseCounts(uses)
+	r.AllocateSlots()
+	r.AssignNames()
+
+	// Should skip 'a' and 'b', assign 'c'
+	name := r.NameForSymbol(ast.Ref{InnerIndex: 0})
+	if name != "c" {
+		t.Errorf("Expected 'c' (skipping reserved 'a' and 'b'), got %q", name)
+	}
+}
+
+func TestMinifyRenamerZeroUseCount(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "unused", UseCount: 0},
+		{OriginalName: "used", UseCount: 5},
+	}
+
+	reserved := ComputeReservedNames()
+	r := NewMinifyRenamer(symbols, reserved)
+
+	// Manually set use counts (simulating no accumulation for first symbol)
+	// AllocateSlots should only include symbols with UseCount > 0
+	r.AllocateSlots()
+	r.AssignNames()
+
+	// Unused symbol should return original name (no slot allocated)
+	name0 := r.NameForSymbol(ast.Ref{InnerIndex: 0})
+	if name0 != "unused" {
+		t.Errorf("unused symbol should return original name, got %q", name0)
+	}
+
+	// Used symbol should get renamed
+	name1 := r.NameForSymbol(ast.Ref{InnerIndex: 1})
+	if name1 != "a" {
+		t.Errorf("used symbol should get 'a', got %q", name1)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// CharFreq Underscore Test
+// ----------------------------------------------------------------------------
+
+func TestCharFreqScanUnderscore(t *testing.T) {
+	var freq CharFreq
+
+	freq.Scan("my_var_name", 1)
+	if freq[62] != 2 { // '_' is at index 62
+		t.Errorf("expected freq[62] = 2 for underscores, got %d", freq[62])
+	}
+}
+
+func TestCharFreqScanIgnoresInvalidChars(t *testing.T) {
+	var freq CharFreq
+
+	// These characters should be ignored: spaces, punctuation, special chars
+	freq.Scan("a!@#$%^&*()b+=-[]{}|;':\",./<>?`~c d\t\n", 1)
+
+	// Only a, b, c, d should be counted
+	if freq[0] != 1 { // 'a'
+		t.Errorf("expected freq[0] = 1 for 'a', got %d", freq[0])
+	}
+	if freq[1] != 1 { // 'b'
+		t.Errorf("expected freq[1] = 1 for 'b', got %d", freq[1])
+	}
+	if freq[2] != 1 { // 'c'
+		t.Errorf("expected freq[2] = 1 for 'c', got %d", freq[2])
+	}
+	if freq[3] != 1 { // 'd'
+		t.Errorf("expected freq[3] = 1 for 'd', got %d", freq[3])
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Integration Tests
+// ----------------------------------------------------------------------------
 
 func TestReservedNamesCount(t *testing.T) {
 	reserved := ComputeReservedNames()
