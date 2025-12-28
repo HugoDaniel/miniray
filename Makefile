@@ -16,7 +16,8 @@ LDFLAGS := -s -w \
 BUILD_DIR := build
 CMD_DIR := cmd/miniray
 
-.PHONY: all build clean test lint fmt vet check install help build-wasm package-wasm lib lib-clean \
+.PHONY: all build clean test lint fmt vet check install help build-wasm package-wasm \
+        lib lib-clean lib-info \
         coverage coverage-html coverage-report coverage-func coverage-check coverage-clean
 
 # Default target
@@ -73,10 +74,10 @@ package-wasm: build-wasm
 	@echo "Files:"
 	@ls -lh $(NPM_DIR)/*.wasm $(NPM_DIR)/*.js 2>/dev/null || true
 
-# Build C static library for FFI integration
+# Build C static library for FFI integration (Zig, C, Rust, etc.)
 LIB_CMD := cmd/miniray-lib
 
-.PHONY: lib lib-clean
+.PHONY: lib lib-clean lib-info
 
 lib:
 	@echo "Building C static library (libminiray.a)..."
@@ -86,6 +87,44 @@ lib:
 	@echo "Built:"
 	@echo "  $(BUILD_DIR)/libminiray.a  ($$(du -h $(BUILD_DIR)/libminiray.a | cut -f1))"
 	@echo "  $(BUILD_DIR)/libminiray.h  (C header)"
+	@echo ""
+	@echo "Exported functions:"
+	@echo "  miniray_minify()             - Minify WGSL source"
+	@echo "  miniray_reflect()            - Reflect shader bindings/structs"
+	@echo "  miniray_minify_and_reflect() - Combined with mapped names"
+	@echo "  miniray_free()               - Free allocated memory"
+	@echo "  miniray_version()            - Get library version"
+
+lib-info:
+	@echo "C Library API Reference"
+	@echo "======================"
+	@echo ""
+	@echo "int miniray_minify("
+	@echo "    char* source, int source_len,"
+	@echo "    char* options_json, int options_len,  // NULL for defaults"
+	@echo "    char** out_code, int* out_code_len,"
+	@echo "    char** out_json, int* out_json_len    // NULL to skip stats"
+	@echo ");"
+	@echo ""
+	@echo "int miniray_reflect("
+	@echo "    char* source, int source_len,"
+	@echo "    char** out_json, int* out_len"
+	@echo ");"
+	@echo ""
+	@echo "int miniray_minify_and_reflect("
+	@echo "    char* source, int source_len,"
+	@echo "    char* options_json, int options_len,"
+	@echo "    char** out_code, int* out_code_len,"
+	@echo "    char** out_json, int* out_json_len"
+	@echo ");"
+	@echo ""
+	@echo "void miniray_free(char* ptr);"
+	@echo "char* miniray_version(void);"
+	@echo ""
+	@echo "Error codes: 0=OK, 1=JSON_ENCODE, 2=NULL_INPUT, 3=JSON_DECODE"
+	@echo ""
+	@echo "Options JSON format:"
+	@echo '  {"minifyWhitespace":true,"minifyIdentifiers":true,"minifySyntax":true}'
 
 lib-clean:
 	@rm -f $(BUILD_DIR)/libminiray.a $(BUILD_DIR)/libminiray.h
@@ -238,6 +277,7 @@ help:
 	@echo "  build-wasm    Build WebAssembly module"
 	@echo "  package-wasm  Package WASM for npm distribution"
 	@echo "  lib           Build C static library (libminiray.a) for FFI"
+	@echo "  lib-info      Show C library API reference"
 	@echo "  install       Install to GOPATH/bin"
 	@echo "  clean         Remove build artifacts"
 	@echo "  test          Run tests"
