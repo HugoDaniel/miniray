@@ -9,6 +9,7 @@
 *.test
 coverage.out
 coverage.html
+testdata/*.minified
 
 # IDE/Editor
 .idea/
