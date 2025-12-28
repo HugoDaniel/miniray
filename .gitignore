@@ -25,3 +25,4 @@ Thumbs.db
 # Go
 vendor/
 go.sum
+testdata/tint/

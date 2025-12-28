@@ -136,6 +136,22 @@ func (r *MinifyRenamer) AllocateSlots() {
 	}
 }
 
+// ReserveUnrenamedSymbolNames adds original names of symbols that won't be renamed
+// to the reserved set. This prevents renamed symbols from conflicting with
+// unrenamed ones (e.g., a symbol with UseCount=0 keeps its original name).
+func (r *MinifyRenamer) ReserveUnrenamedSymbolNames() {
+	for i := range r.symbols {
+		sym := &r.symbols[i]
+		ref := ast.Ref{InnerIndex: uint32(i)}
+
+		// If this symbol doesn't have a slot, it keeps its original name
+		if _, hasSlot := r.topLevelSlots[ref]; !hasSlot {
+			// Reserve its original name so other symbols don't get renamed to it
+			r.reservedNames[sym.OriginalName] = true
+		}
+	}
+}
+
 // AssignNames assigns minified names to slots.
 func (r *MinifyRenamer) AssignNames() {
 	nameIndex := 0

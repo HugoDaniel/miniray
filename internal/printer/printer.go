@@ -417,6 +417,7 @@ func (p *Printer) printType(t ast.Type) {
 			p.print("<")
 			p.printType(typ.ElemType)
 			p.print(">")
+			p.needsSpace = true // Prevent >= from forming
 		}
 
 	case *ast.MatType:
@@ -430,6 +431,7 @@ func (p *Printer) printType(t ast.Type) {
 			p.print("<")
 			p.printType(typ.ElemType)
 			p.print(">")
+			p.needsSpace = true // Prevent >= from forming
 		}
 
 	case *ast.ArrayType:
@@ -441,6 +443,7 @@ func (p *Printer) printType(t ast.Type) {
 			p.printExpr(typ.Size)
 		}
 		p.print(">")
+		p.needsSpace = true // Prevent >= from forming
 
 	case *ast.PtrType:
 		p.print("ptr<")
@@ -454,11 +457,13 @@ func (p *Printer) printType(t ast.Type) {
 			p.print(typ.AccessMode.String())
 		}
 		p.print(">")
+		p.needsSpace = true // Prevent >= from forming
 
 	case *ast.AtomicType:
 		p.print("atomic<")
 		p.printType(typ.ElemType)
 		p.print(">")
+		p.needsSpace = true // Prevent >= from forming
 
 	case *ast.SamplerType:
 		if typ.Comparison {
@@ -509,6 +514,7 @@ func (p *Printer) printTextureType(t *ast.TextureType) {
 		p.print("<")
 		p.printType(t.SampledType)
 		p.print(">")
+		p.needsSpace = true // Prevent >= from forming
 	} else if t.TexelFormat != "" {
 		p.print("<")
 		p.print(t.TexelFormat)
@@ -516,6 +522,7 @@ func (p *Printer) printTextureType(t *ast.TextureType) {
 		p.printSpace()
 		p.print(t.AccessMode.String())
 		p.print(">")
+		p.needsSpace = true // Prevent >= from forming
 	}
 }
 

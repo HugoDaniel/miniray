@@ -193,6 +193,7 @@ func (m *Minifier) MinifyModuleWithSource(module *ast.Module, source string) Res
 		minRenamer := renamer.NewMinifyRenamer(module.Symbols, reserved)
 		minRenamer.AccumulateSymbolUseCounts(uses)
 		minRenamer.AllocateSlots()
+		minRenamer.ReserveUnrenamedSymbolNames() // Prevent conflicts with unrenamed symbols
 		minRenamer.AssignNames()
 		ren = minRenamer
 	} else {
@@ -544,6 +545,7 @@ func (m *Minifier) minifyModuleWithRenamer(module *ast.Module, source string) (R
 		minRenamer := renamer.NewMinifyRenamer(module.Symbols, reserved)
 		minRenamer.AccumulateSymbolUseCounts(uses)
 		minRenamer.AllocateSlots()
+		minRenamer.ReserveUnrenamedSymbolNames() // Prevent conflicts with unrenamed symbols
 		minRenamer.AssignNames()
 		ren = minRenamer
 	} else {
