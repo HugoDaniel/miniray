@@ -1340,3 +1340,223 @@ func TestFunctionMultipleParams(t *testing.T) {
 	expectPrinted(t, "fn add(a: i32, b: i32) -> i32 { return a + b; }",
 		"fn add(a: i32, b: i32) -> i32 {\n    return a + b;\n}\n")
 }
+
+// ----------------------------------------------------------------------------
+// Direct AST Construction Tests
+// These test branches that the parser doesn't produce but the printer supports
+// ----------------------------------------------------------------------------
+
+// TestSamplerTypeDirectAST covers the SamplerType branch in printType.
+// The parser produces IdentType for samplers, but the AST supports SamplerType.
+func TestSamplerTypeDirectAST(t *testing.T) {
+	// Test sampler (non-comparison)
+	module := &ast.Module{
+		Declarations: []ast.Decl{
+			&ast.VarDecl{
+				Name: ast.Ref{InnerIndex: 0},
+				Type: &ast.SamplerType{Comparison: false},
+				Attributes: []ast.Attribute{
+					{Name: "group", Args: []ast.Expr{&ast.LiteralExpr{Value: "0"}}},
+					{Name: "binding", Args: []ast.Expr{&ast.LiteralExpr{Value: "0"}}},
+				},
+			},
+		},
+		Symbols: []ast.Symbol{{OriginalName: "s", Flags: ast.IsLive}},
+	}
+	pr := New(Options{}, module.Symbols)
+	result := pr.Print(module)
+	expected := "@group(0) @binding(0) var s: sampler;\n"
+	if result != expected {
+		t.Errorf("SamplerType (non-comparison)\nexpected: %q\nactual: %q", expected, result)
+	}
+
+	// Test sampler_comparison
+	module.Declarations[0].(*ast.VarDecl).Type = &ast.SamplerType{Comparison: true}
+	pr = New(Options{}, module.Symbols)
+	result = pr.Print(module)
+	expected = "@group(0) @binding(0) var s: sampler_comparison;\n"
+	if result != expected {
+		t.Errorf("SamplerType (comparison)\nexpected: %q\nactual: %q", expected, result)
+	}
+}
+
+// TestVecTypeShorthandDirectAST covers the VecType Shorthand branch in printType.
+// The parser produces IdentType for vec3f etc., but VecType supports Shorthand.
+func TestVecTypeShorthandDirectAST(t *testing.T) {
+	module := &ast.Module{
+		Declarations: []ast.Decl{
+			&ast.VarDecl{
+				Name: ast.Ref{InnerIndex: 0},
+				Type: &ast.VecType{Size: 3, Shorthand: "vec3f"},
+			},
+		},
+		Symbols: []ast.Symbol{{OriginalName: "v", Flags: ast.IsLive}},
+	}
+	pr := New(Options{}, module.Symbols)
+	result := pr.Print(module)
+	expected := "var v: vec3f;\n"
+	if result != expected {
+		t.Errorf("VecType Shorthand\nexpected: %q\nactual: %q", expected, result)
+	}
+}
+
+// TestMatTypeShorthandDirectAST covers the MatType Shorthand branch in printType.
+// The parser produces IdentType for mat4x4f etc., but MatType supports Shorthand.
+func TestMatTypeShorthandDirectAST(t *testing.T) {
+	module := &ast.Module{
+		Declarations: []ast.Decl{
+			&ast.VarDecl{
+				Name: ast.Ref{InnerIndex: 0},
+				Type: &ast.MatType{Cols: 4, Rows: 4, Shorthand: "mat4x4f"},
+			},
+		},
+		Symbols: []ast.Symbol{{OriginalName: "m", Flags: ast.IsLive}},
+	}
+	pr := New(Options{}, module.Symbols)
+	result := pr.Print(module)
+	expected := "var m: mat4x4f;\n"
+	if result != expected {
+		t.Errorf("MatType Shorthand\nexpected: %q\nactual: %q", expected, result)
+	}
+}
+
+// TestTextureExternalDirectAST covers the texture_external branch in printTextureType.
+func TestTextureExternalDirectAST(t *testing.T) {
+	module := &ast.Module{
+		Declarations: []ast.Decl{
+			&ast.VarDecl{
+				Name: ast.Ref{InnerIndex: 0},
+				Type: &ast.TextureType{Kind: ast.TextureExternal},
+				Attributes: []ast.Attribute{
+					{Name: "group", Args: []ast.Expr{&ast.LiteralExpr{Value: "0"}}},
+					{Name: "binding", Args: []ast.Expr{&ast.LiteralExpr{Value: "0"}}},
+				},
+			},
+		},
+		Symbols: []ast.Symbol{{OriginalName: "t", Flags: ast.IsLive}},
+	}
+	pr := New(Options{}, module.Symbols)
+	result := pr.Print(module)
+	expected := "@group(0) @binding(0) var t: texture_external;\n"
+	if result != expected {
+		t.Errorf("TextureExternal\nexpected: %q\nactual: %q", expected, result)
+	}
+}
+
+// TestTextureTypeDirectAST covers various TextureType branches in printTextureType.
+func TestTextureTypeDirectAST(t *testing.T) {
+	tests := []struct {
+		name     string
+		texType  *ast.TextureType
+		expected string
+	}{
+		{
+			name: "texture_1d",
+			texType: &ast.TextureType{
+				Kind:        ast.TextureSampled,
+				Dimension:   ast.Texture1D,
+				SampledType: &ast.IdentType{Name: "f32", Ref: ast.InvalidRef()},
+			},
+			expected: "var t: texture_1d<f32>;\n",
+		},
+		{
+			name: "texture_3d",
+			texType: &ast.TextureType{
+				Kind:        ast.TextureSampled,
+				Dimension:   ast.Texture3D,
+				SampledType: &ast.IdentType{Name: "f32", Ref: ast.InvalidRef()},
+			},
+			expected: "var t: texture_3d<f32>;\n",
+		},
+		{
+			name: "texture_cube",
+			texType: &ast.TextureType{
+				Kind:        ast.TextureSampled,
+				Dimension:   ast.TextureCube,
+				SampledType: &ast.IdentType{Name: "f32", Ref: ast.InvalidRef()},
+			},
+			expected: "var t: texture_cube<f32>;\n",
+		},
+		{
+			name: "texture_cube_array",
+			texType: &ast.TextureType{
+				Kind:        ast.TextureSampled,
+				Dimension:   ast.TextureCubeArray,
+				SampledType: &ast.IdentType{Name: "f32", Ref: ast.InvalidRef()},
+			},
+			expected: "var t: texture_cube_array<f32>;\n",
+		},
+		{
+			name: "texture_multisampled_2d",
+			texType: &ast.TextureType{
+				Kind:        ast.TextureMultisampled,
+				Dimension:   ast.Texture2D,
+				SampledType: &ast.IdentType{Name: "f32", Ref: ast.InvalidRef()},
+			},
+			expected: "var t: texture_multisampled_2d<f32>;\n",
+		},
+		{
+			name: "texture_storage_1d",
+			texType: &ast.TextureType{
+				Kind:        ast.TextureStorage,
+				Dimension:   ast.Texture1D,
+				TexelFormat: "rgba8unorm",
+				AccessMode:  ast.AccessModeWrite,
+			},
+			expected: "var t: texture_storage_1d<rgba8unorm, write>;\n",
+		},
+		{
+			name: "texture_storage_3d",
+			texType: &ast.TextureType{
+				Kind:        ast.TextureStorage,
+				Dimension:   ast.Texture3D,
+				TexelFormat: "r32float",
+				AccessMode:  ast.AccessModeReadWrite,
+			},
+			expected: "var t: texture_storage_3d<r32float, read_write>;\n",
+		},
+		{
+			name: "texture_depth_2d",
+			texType: &ast.TextureType{
+				Kind:      ast.TextureDepth,
+				Dimension: ast.Texture2D,
+			},
+			expected: "var t: texture_depth_2d;\n",
+		},
+		{
+			name: "texture_depth_cube",
+			texType: &ast.TextureType{
+				Kind:      ast.TextureDepth,
+				Dimension: ast.TextureCube,
+			},
+			expected: "var t: texture_depth_cube;\n",
+		},
+		{
+			name: "texture_depth_multisampled_2d",
+			texType: &ast.TextureType{
+				Kind:      ast.TextureDepthMultisampled,
+				Dimension: ast.Texture2D,
+			},
+			expected: "var t: texture_depth_multisampled_2d;\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			module := &ast.Module{
+				Declarations: []ast.Decl{
+					&ast.VarDecl{
+						Name: ast.Ref{InnerIndex: 0},
+						Type: tt.texType,
+					},
+				},
+				Symbols: []ast.Symbol{{OriginalName: "t", Flags: ast.IsLive}},
+			}
+			pr := New(Options{}, module.Symbols)
+			result := pr.Print(module)
+			if result != tt.expected {
+				t.Errorf("%s\nexpected: %q\nactual: %q", tt.name, tt.expected, result)
+			}
+		})
+	}
+}

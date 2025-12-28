@@ -34,14 +34,15 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          go test -coverprofile=coverage.out -covermode=atomic ./...
+          # Use -coverpkg to track cross-package coverage (minifier is tested via minifier_tests)
+          go test -coverprofile=coverage.out -covermode=atomic -coverpkg=./internal/... ./...
           go tool cover -func=coverage.out
 
       - name: Check coverage threshold
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{gsub(/%/, ""); print $3}')
           echo "Total coverage: ${COVERAGE}%"
-          THRESHOLD=50
+          THRESHOLD=90
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
             echo "Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             exit 1
