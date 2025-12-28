@@ -242,11 +242,13 @@ func (lc *LayoutComputer) computeStructLayout(decl *ast.StructDecl) *StructLayou
 		offset = roundUp(offset, memberLayout.Alignment)
 
 		field := FieldInfo{
-			Name:      lc.getSymbolName(member.Name),
-			Type:      lc.typeToString(member.Type),
-			Offset:    offset,
-			Size:      memberLayout.Size,
-			Alignment: memberLayout.Alignment,
+			Name:       lc.getSymbolName(member.Name),
+			NameMapped: lc.getMappedName(member.Name),
+			Type:       lc.typeToStringMapped(member.Type, false),
+			TypeMapped: lc.typeToStringMapped(member.Type, true),
+			Offset:     offset,
+			Size:       memberLayout.Size,
+			Alignment:  memberLayout.Alignment,
 		}
 
 		// Add nested layout for struct types
@@ -292,31 +294,41 @@ func (lc *LayoutComputer) getSymbolName(ref ast.Ref) string {
 }
 
 // typeToString converts an AST type to a string representation.
+// If mapped is true, uses minified names for user-defined types.
 func (lc *LayoutComputer) typeToString(t ast.Type) string {
+	return lc.typeToStringMapped(t, false)
+}
+
+// typeToStringMapped converts an AST type to a string representation.
+// If mapped is true, uses minified names for user-defined types.
+func (lc *LayoutComputer) typeToStringMapped(t ast.Type, mapped bool) string {
 	if t == nil {
 		return ""
 	}
 
 	switch typ := t.(type) {
 	case *ast.IdentType:
+		if mapped && typ.Ref.IsValid() {
+			return lc.getMappedName(typ.Ref)
+		}
 		return typ.Name
 
 	case *ast.VecType:
 		if typ.Shorthand != "" {
 			return typ.Shorthand
 		}
-		elemStr := lc.typeToString(typ.ElemType)
+		elemStr := lc.typeToStringMapped(typ.ElemType, mapped)
 		return "vec" + strconv.Itoa(int(typ.Size)) + "<" + elemStr + ">"
 
 	case *ast.MatType:
 		if typ.Shorthand != "" {
 			return typ.Shorthand
 		}
-		elemStr := lc.typeToString(typ.ElemType)
+		elemStr := lc.typeToStringMapped(typ.ElemType, mapped)
 		return "mat" + strconv.Itoa(int(typ.Cols)) + "x" + strconv.Itoa(int(typ.Rows)) + "<" + elemStr + ">"
 
 	case *ast.ArrayType:
-		elemStr := lc.typeToString(typ.ElemType)
+		elemStr := lc.typeToStringMapped(typ.ElemType, mapped)
 		if typ.Size != nil {
 			size := lc.evaluateConstExpr(typ.Size)
 			if size >= 0 {
@@ -326,7 +338,7 @@ func (lc *LayoutComputer) typeToString(t ast.Type) string {
 		return "array<" + elemStr + ">"
 
 	case *ast.AtomicType:
-		return "atomic<" + lc.typeToString(typ.ElemType) + ">"
+		return "atomic<" + lc.typeToStringMapped(typ.ElemType, mapped) + ">"
 
 	case *ast.SamplerType:
 		if typ.Comparison {
@@ -338,11 +350,60 @@ func (lc *LayoutComputer) typeToString(t ast.Type) string {
 		return lc.textureTypeToString(typ)
 
 	case *ast.PtrType:
-		return "ptr<" + typ.AddressSpace.String() + ", " + lc.typeToString(typ.ElemType) + ">"
+		return "ptr<" + typ.AddressSpace.String() + ", " + lc.typeToStringMapped(typ.ElemType, mapped) + ">"
 
 	default:
 		return ""
 	}
+}
+
+// getMappedName returns the mapped (minified) name for a symbol reference.
+// For now, returns the original name since reflection doesn't have access to the rename map.
+// This will be populated when combined minify+reflect is implemented.
+func (lc *LayoutComputer) getMappedName(ref ast.Ref) string {
+	// For now, return original name - minified names require the rename map
+	return lc.getSymbolName(ref)
+}
+
+// extractArrayInfo extracts array metadata including nested array information.
+// The depth parameter tracks nesting level (1 for outermost array).
+func (lc *LayoutComputer) extractArrayInfo(arrayType *ast.ArrayType, depth int) *ArrayInfo {
+	arrayLayout := lc.computeArrayTypeLayout(arrayType)
+
+	var elementCount *int
+	var totalSize *int
+	if arrayType.Size != nil {
+		count := lc.evaluateConstExpr(arrayType.Size)
+		if count >= 0 {
+			elementCount = &count
+			total := count * arrayLayout.Stride
+			totalSize = &total
+		}
+	}
+	// null for runtime-sized arrays (arrayType.Size == nil)
+
+	info := &ArrayInfo{
+		Depth:             depth,
+		ElementCount:      elementCount,
+		ElementStride:     arrayLayout.Stride,
+		TotalSize:         totalSize,
+		ElementType:       lc.typeToStringMapped(arrayType.ElemType, false), // original
+		ElementTypeMapped: lc.typeToStringMapped(arrayType.ElemType, true),  // minified
+	}
+
+	// Add struct layout if element is a struct type
+	if identType, ok := arrayType.ElemType.(*ast.IdentType); ok && identType.Ref.IsValid() {
+		if structLayout := lc.GetStructLayout(identType.Ref); structLayout != nil {
+			info.ElementLayout = structLayout
+		}
+	}
+
+	// Handle nested arrays recursively
+	if nestedArray, ok := arrayType.ElemType.(*ast.ArrayType); ok {
+		info.Array = lc.extractArrayInfo(nestedArray, depth+1)
+	}
+
+	return info
 }
 
 // textureTypeToString converts a texture type to string.

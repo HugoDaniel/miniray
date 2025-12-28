@@ -165,8 +165,11 @@ type BindingInfo struct {
 	// Binding is the binding index from @binding(n).
 	Binding int `json:"binding"`
 
-	// Name is the variable name.
+	// Name is the original variable name.
 	Name string `json:"name"`
+
+	// NameMapped is the minified variable name (same as Name if not minified).
+	NameMapped string `json:"nameMapped"`
 
 	// AddressSpace is the memory address space: "uniform", "storage", "handle", or "".
 	AddressSpace string `json:"addressSpace"`
@@ -174,12 +177,47 @@ type BindingInfo struct {
 	// AccessMode is the access mode for storage bindings: "read", "write", "read_write", or "".
 	AccessMode string `json:"accessMode,omitempty"`
 
-	// Type is the type as a string (e.g., "MyStruct", "texture_2d<f32>").
+	// Type is the original type as a string (e.g., "MyStruct", "texture_2d<f32>").
 	Type string `json:"type"`
 
-	// Layout contains the memory layout for struct types.
-	// Nil for textures and samplers.
-	Layout *StructLayout `json:"layout"`
+	// TypeMapped is the minified type string (same as Type if not minified).
+	TypeMapped string `json:"typeMapped"`
+
+	// Layout contains the memory layout for non-array struct types.
+	// Nil for textures, samplers, and array types.
+	Layout *StructLayout `json:"layout,omitempty"`
+
+	// Array contains array-specific information for array types.
+	// Nil for non-array types.
+	Array *ArrayInfo `json:"array,omitempty"`
+}
+
+// ArrayInfo describes array-specific information for array types.
+// For nested arrays (e.g., array<array<f32, 4>, 10>), Array field contains nested info.
+type ArrayInfo struct {
+	// Depth is the nesting depth (1 = simple array, 2+ = nested).
+	Depth int `json:"depth"`
+
+	// ElementCount is the number of elements. Nil for runtime-sized arrays.
+	ElementCount *int `json:"elementCount"`
+
+	// ElementStride is the stride in bytes (size + alignment padding).
+	ElementStride int `json:"elementStride"`
+
+	// TotalSize is elementCount * elementStride. Nil for runtime-sized arrays.
+	TotalSize *int `json:"totalSize"`
+
+	// ElementType is the original element type name (e.g., "Particle", "vec4f").
+	ElementType string `json:"elementType"`
+
+	// ElementTypeMapped is the minified element type name.
+	ElementTypeMapped string `json:"elementTypeMapped"`
+
+	// ElementLayout contains struct layout if element is a struct type.
+	ElementLayout *StructLayout `json:"elementLayout,omitempty"`
+
+	// Array contains nested array info for array<array<...>> types.
+	Array *ArrayInfo `json:"array,omitempty"`
 }
 
 // StructLayout describes the memory layout of a struct type.
@@ -196,11 +234,17 @@ type StructLayout struct {
 
 // FieldInfo describes a struct field with its memory layout.
 type FieldInfo struct {
-	// Name is the field name.
+	// Name is the original field name.
 	Name string `json:"name"`
 
-	// Type is the field type as a string.
+	// NameMapped is the minified field name (same as Name if not minified).
+	NameMapped string `json:"nameMapped"`
+
+	// Type is the original field type as a string.
 	Type string `json:"type"`
+
+	// TypeMapped is the minified field type string (same as Type if not minified).
+	TypeMapped string `json:"typeMapped"`
 
 	// Offset is the byte offset from the start of the struct.
 	Offset int `json:"offset"`
@@ -249,13 +293,33 @@ func convertBindings(bindings []reflect.BindingInfo) []BindingInfo {
 			Group:        b.Group,
 			Binding:      b.Binding,
 			Name:         b.Name,
+			NameMapped:   b.NameMapped,
 			AddressSpace: b.AddressSpace,
 			AccessMode:   b.AccessMode,
 			Type:         b.Type,
+			TypeMapped:   b.TypeMapped,
 			Layout:       convertStructLayout(b.Layout),
+			Array:        convertArrayInfo(b.Array),
 		}
 	}
 	return result
+}
+
+// convertArrayInfo converts internal array info to API type.
+func convertArrayInfo(info *reflect.ArrayInfo) *ArrayInfo {
+	if info == nil {
+		return nil
+	}
+	return &ArrayInfo{
+		Depth:             info.Depth,
+		ElementCount:      info.ElementCount,
+		ElementStride:     info.ElementStride,
+		TotalSize:         info.TotalSize,
+		ElementType:       info.ElementType,
+		ElementTypeMapped: info.ElementTypeMapped,
+		ElementLayout:     convertStructLayout(info.ElementLayout),
+		Array:             convertArrayInfo(info.Array),
+	}
 }
 
 // convertStructs converts internal struct layouts to API types.
@@ -288,12 +352,14 @@ func convertFields(fields []reflect.FieldInfo) []FieldInfo {
 	result := make([]FieldInfo, len(fields))
 	for i, f := range fields {
 		result[i] = FieldInfo{
-			Name:      f.Name,
-			Type:      f.Type,
-			Offset:    f.Offset,
-			Size:      f.Size,
-			Alignment: f.Alignment,
-			Layout:    convertStructLayout(f.Layout),
+			Name:       f.Name,
+			NameMapped: f.NameMapped,
+			Type:       f.Type,
+			TypeMapped: f.TypeMapped,
+			Offset:     f.Offset,
+			Size:       f.Size,
+			Alignment:  f.Alignment,
+			Layout:     convertStructLayout(f.Layout),
 		}
 	}
 	return result

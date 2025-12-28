@@ -24,10 +24,26 @@ type BindingInfo struct {
 	Group        int           `json:"group"`
 	Binding      int           `json:"binding"`
 	Name         string        `json:"name"`
+	NameMapped   string        `json:"nameMapped"`
 	AddressSpace string        `json:"addressSpace"`
 	AccessMode   string        `json:"accessMode,omitempty"`
 	Type         string        `json:"type"`
-	Layout       *StructLayout `json:"layout"` // null for textures/samplers
+	TypeMapped   string        `json:"typeMapped"`
+	Layout       *StructLayout `json:"layout,omitempty"` // only for non-array struct types
+	Array        *ArrayInfo    `json:"array,omitempty"`  // only for array types
+}
+
+// ArrayInfo describes array-specific information for array types.
+// For nested arrays (e.g., array<array<f32, 4>, 10>), Array field contains nested info.
+type ArrayInfo struct {
+	Depth             int           `json:"depth"`                   // nesting depth (1 = simple array, 2+ = nested)
+	ElementCount      *int          `json:"elementCount"`            // null for runtime-sized arrays
+	ElementStride     int           `json:"elementStride"`           // stride in bytes (size + alignment padding)
+	TotalSize         *int          `json:"totalSize"`               // elementCount * elementStride, null for runtime-sized
+	ElementType       string        `json:"elementType"`             // original name: "Particle", "vec4f", "array<f32, 4>"
+	ElementTypeMapped string        `json:"elementTypeMapped"`       // minified name: "a", "vec4f", "array<f32, 4>"
+	ElementLayout     *StructLayout `json:"elementLayout,omitempty"` // layout if element is a struct
+	Array             *ArrayInfo    `json:"array,omitempty"`         // nested array info (for array<array<...>>)
 }
 
 // StructLayout describes the memory layout of a struct.
@@ -39,12 +55,14 @@ type StructLayout struct {
 
 // FieldInfo describes a single struct field.
 type FieldInfo struct {
-	Name      string        `json:"name"`
-	Type      string        `json:"type"`
-	Offset    int           `json:"offset"`
-	Size      int           `json:"size"`
-	Alignment int           `json:"alignment"`
-	Layout    *StructLayout `json:"layout,omitempty"` // for nested structs
+	Name       string        `json:"name"`
+	NameMapped string        `json:"nameMapped"`
+	Type       string        `json:"type"`
+	TypeMapped string        `json:"typeMapped"`
+	Offset     int           `json:"offset"`
+	Size       int           `json:"size"`
+	Alignment  int           `json:"alignment"`
+	Layout     *StructLayout `json:"layout,omitempty"` // for nested structs
 }
 
 // EntryPointInfo describes a shader entry point function.
@@ -145,12 +163,15 @@ func extractBinding(varDecl *ast.VarDecl, symbols []ast.Symbol, lc *LayoutComput
 		}
 	}
 
+	name := getSymbolName(varDecl.Name, symbols)
 	info := &BindingInfo{
 		Group:        group,
 		Binding:      binding,
-		Name:         getSymbolName(varDecl.Name, symbols),
+		Name:         name,
+		NameMapped:   lc.getMappedName(varDecl.Name),
 		AddressSpace: addressSpaceToString(addressSpace),
-		Type:         lc.typeToString(varDecl.Type),
+		Type:         lc.typeToStringMapped(varDecl.Type, false),
+		TypeMapped:   lc.typeToStringMapped(varDecl.Type, true),
 	}
 
 	// Add access mode for storage bindings
@@ -158,19 +179,20 @@ func extractBinding(varDecl *ast.VarDecl, symbols []ast.Symbol, lc *LayoutComput
 		info.AccessMode = varDecl.AccessMode.String()
 	}
 
-	// Add layout for struct types (uniform/storage only)
+	// Handle array types - extract array info and put struct layout inside
+	if arrayType, ok := varDecl.Type.(*ast.ArrayType); ok {
+		if varDecl.AddressSpace == ast.AddressSpaceUniform || varDecl.AddressSpace == ast.AddressSpaceStorage {
+			info.Array = lc.extractArrayInfo(arrayType, 1)
+		}
+		// For array types, layout goes inside array.elementLayout, not at binding level
+		return info
+	}
+
+	// Add layout for non-array struct types (uniform/storage only)
 	if varDecl.AddressSpace == ast.AddressSpaceUniform || varDecl.AddressSpace == ast.AddressSpaceStorage {
 		if identType, ok := varDecl.Type.(*ast.IdentType); ok && identType.Ref.IsValid() {
 			if layout := lc.GetStructLayout(identType.Ref); layout != nil {
 				info.Layout = layout
-			}
-		}
-		// Handle array of structs
-		if arrayType, ok := varDecl.Type.(*ast.ArrayType); ok {
-			if identType, ok := arrayType.ElemType.(*ast.IdentType); ok && identType.Ref.IsValid() {
-				if layout := lc.GetStructLayout(identType.Ref); layout != nil {
-					info.Layout = layout
-				}
 			}
 		}
 	}
