@@ -34,7 +34,7 @@ import (
 )
 
 // Version should match the release version
-const version = "0.3.0"
+const version = "0.3.1"
 
 // Error codes
 const (

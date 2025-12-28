@@ -15,7 +15,7 @@ import (
 	"github.com/HugoDaniel/miniray/internal/validator"
 )
 
-var version = "0.1.0"
+var version = "0.3.1"
 
 // jsOptions mirrors the JavaScript options object.
 type jsOptions struct {
