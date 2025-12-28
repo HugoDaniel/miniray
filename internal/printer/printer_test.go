@@ -1286,3 +1286,57 @@ func TestSamplerNonComparison(t *testing.T) {
 	expectPrinted(t, "@group(0) @binding(0) var s: sampler;",
 		"@group(0) @binding(0) var s: sampler;\n")
 }
+
+// ----------------------------------------------------------------------------
+// Depth Textures (covers printTextureType depth branches)
+// ----------------------------------------------------------------------------
+
+func TestDepthTexture2D(t *testing.T) {
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_2d;",
+		"@group(0) @binding(0) var t: texture_depth_2d;\n")
+}
+
+func TestDepthTexture2DArray(t *testing.T) {
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_2d_array;",
+		"@group(0) @binding(0) var t: texture_depth_2d_array;\n")
+}
+
+func TestDepthTextureCube(t *testing.T) {
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_cube;",
+		"@group(0) @binding(0) var t: texture_depth_cube;\n")
+}
+
+func TestDepthTextureCubeArray(t *testing.T) {
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_cube_array;",
+		"@group(0) @binding(0) var t: texture_depth_cube_array;\n")
+}
+
+func TestDepthMultisampledTexture2D(t *testing.T) {
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_multisampled_2d;",
+		"@group(0) @binding(0) var t: texture_depth_multisampled_2d;\n")
+}
+
+// ----------------------------------------------------------------------------
+// Let declarations (covers printDecl LetDecl branch)
+// ----------------------------------------------------------------------------
+
+func TestLetDeclarationWithType(t *testing.T) {
+	expectPrinted(t, "fn f() { let x: i32 = 5; }", "fn f() {\n    let x: i32 = 5;\n}\n")
+}
+
+// ----------------------------------------------------------------------------
+// Override with initializer (covers printDecl OverrideDecl initializer branch)
+// ----------------------------------------------------------------------------
+
+func TestOverrideWithInitializer(t *testing.T) {
+	expectPrinted(t, "@id(0) override scale: f32 = 1.0;", "@id(0) override scale: f32 = 1.0;\n")
+}
+
+// ----------------------------------------------------------------------------
+// Function with multiple parameters (covers function param separator)
+// ----------------------------------------------------------------------------
+
+func TestFunctionMultipleParams(t *testing.T) {
+	expectPrinted(t, "fn add(a: i32, b: i32) -> i32 { return a + b; }",
+		"fn add(a: i32, b: i32) -> i32 {\n    return a + b;\n}\n")
+}

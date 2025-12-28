@@ -624,86 +624,6 @@ func unaryOpString(op ast.UnaryOp) string {
 // Statement Printing
 // ----------------------------------------------------------------------------
 
-func (p *Printer) printStmt(s ast.Stmt) {
-	switch stmt := s.(type) {
-	case *ast.CompoundStmt:
-		p.printCompoundStmt(stmt)
-
-	case *ast.ReturnStmt:
-		p.print("return")
-		if stmt.Value != nil {
-			p.print(" ")
-			p.printExpr(stmt.Value)
-		}
-		p.printSemicolon()
-
-	case *ast.IfStmt:
-		p.printIfStmt(stmt)
-
-	case *ast.SwitchStmt:
-		p.printSwitchStmt(stmt)
-
-	case *ast.ForStmt:
-		p.printForStmt(stmt)
-
-	case *ast.WhileStmt:
-		p.print("while ")
-		p.printExpr(stmt.Condition)
-		p.printSpace()
-		p.printCompoundStmt(stmt.Body)
-
-	case *ast.LoopStmt:
-		p.print("loop")
-		p.printSpace()
-		p.printCompoundStmt(stmt.Body)
-		if stmt.Continuing != nil {
-			p.print("continuing")
-			p.printCompoundStmt(stmt.Continuing)
-		}
-
-	case *ast.BreakStmt:
-		p.print("break")
-		p.printSemicolon()
-
-	case *ast.BreakIfStmt:
-		p.print("break if ")
-		p.printExpr(stmt.Condition)
-		p.printSemicolon()
-
-	case *ast.ContinueStmt:
-		p.print("continue")
-		p.printSemicolon()
-
-	case *ast.DiscardStmt:
-		p.print("discard")
-		p.printSemicolon()
-
-	case *ast.AssignStmt:
-		p.printExpr(stmt.Left)
-		p.printSpace()
-		p.print(assignOpString(stmt.Op))
-		p.printSpace()
-		p.printExpr(stmt.Right)
-		p.printSemicolon()
-
-	case *ast.IncrDecrStmt:
-		p.printExpr(stmt.Expr)
-		if stmt.Increment {
-			p.print("++")
-		} else {
-			p.print("--")
-		}
-		p.printSemicolon()
-
-	case *ast.CallStmt:
-		p.printExpr(stmt.Call)
-		p.printSemicolon()
-
-	case *ast.DeclStmt:
-		p.printDecl(stmt.Decl)
-	}
-}
-
 func (p *Printer) printCompoundStmt(stmt *ast.CompoundStmt) {
 	p.print("{")
 	p.indent++
@@ -962,47 +882,6 @@ func (p *Printer) printDeclNoTrailingNewline(d ast.Decl) {
 	}
 }
 
-func (p *Printer) printIfStmt(stmt *ast.IfStmt) {
-	p.print("if ")
-	p.printExpr(stmt.Condition)
-	p.printSpace()
-	p.printCompoundStmt(stmt.Body)
-	if stmt.Else != nil {
-		// Check if else branch is another if statement (else if)
-		if _, isElseIf := stmt.Else.(*ast.IfStmt); isElseIf {
-			p.print("else if ")
-			elseIf := stmt.Else.(*ast.IfStmt)
-			p.printExpr(elseIf.Condition)
-			p.printSpace()
-			p.printCompoundStmt(elseIf.Body)
-			if elseIf.Else != nil {
-				// Recursively handle chained else-if
-				p.printElseChain(elseIf.Else)
-			}
-		} else {
-			p.print("else")
-			p.printSpace()
-			p.printStmt(stmt.Else)
-		}
-	}
-}
-
-func (p *Printer) printElseChain(stmt ast.Stmt) {
-	if ifStmt, isIf := stmt.(*ast.IfStmt); isIf {
-		p.print("else if ")
-		p.printExpr(ifStmt.Condition)
-		p.printSpace()
-		p.printCompoundStmt(ifStmt.Body)
-		if ifStmt.Else != nil {
-			p.printElseChain(ifStmt.Else)
-		}
-	} else {
-		p.print("else")
-		p.printSpace()
-		p.printStmt(stmt)
-	}
-}
-
 func (p *Printer) printElseChainNoTrailing(stmt ast.Stmt) {
 	if ifStmt, isIf := stmt.(*ast.IfStmt); isIf {
 		p.print(" else if ")
@@ -1025,34 +904,6 @@ func (p *Printer) printElseChainNoTrailing(stmt ast.Stmt) {
 		p.printSpace()
 		p.printStmtNoTrailingNewline(stmt)
 	}
-}
-
-func (p *Printer) printSwitchStmt(stmt *ast.SwitchStmt) {
-	p.print("switch ")
-	p.printExpr(stmt.Expr)
-	p.printSpace()
-	p.print("{")
-	p.indent++
-	p.printNewline()
-	for _, c := range stmt.Cases {
-		if c.Selectors == nil {
-			p.print("default")
-		} else {
-			p.print("case ")
-			for i, sel := range c.Selectors {
-				if i > 0 {
-					p.print(",")
-					p.printSpace()
-				}
-				p.printExpr(sel)
-			}
-		}
-		p.print(":")
-		p.printCompoundStmt(c.Body)
-	}
-	p.indent--
-	p.print("}")
-	p.printNewline()
 }
 
 func (p *Printer) printForStmt(stmt *ast.ForStmt) {

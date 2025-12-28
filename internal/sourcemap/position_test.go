@@ -495,3 +495,23 @@ func TestUTF8ToUTF16ColumnBoundaries(t *testing.T) {
 		t.Errorf("Beyond string: col = %d, want 3", col)
 	}
 }
+
+// Test edge cases for ByteOffsetToLineColumn with empty source
+func TestByteOffsetToLineColumnEmptySourcePositiveOffset(t *testing.T) {
+	idx := NewLineIndex("")
+	// Test with positive offset on empty source
+	line, col := idx.ByteOffsetToLineColumn(10)
+	if line != 0 || col != 0 {
+		t.Errorf("Empty source offset 10: got (%d, %d), want (0, 0)", line, col)
+	}
+}
+
+// Test edge cases for ByteOffsetToLineColumnUTF16 with empty source
+func TestByteOffsetToLineColumnUTF16EmptySourcePositiveOffset(t *testing.T) {
+	idx := NewLineIndex("")
+	// Test with positive offset on empty source
+	line, col := idx.ByteOffsetToLineColumnUTF16(10)
+	if line != 0 || col != 0 {
+		t.Errorf("Empty source offset 10: got (%d, %d), want (0, 0)", line, col)
+	}
+}

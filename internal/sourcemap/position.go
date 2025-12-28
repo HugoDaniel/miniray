@@ -69,14 +69,12 @@ func (idx *LineIndex) ByteOffsetToLineColumn(offset int) (line, col int) {
 		offset = len(idx.source)
 	}
 
-	// Binary search for the line containing this offset
+	// Binary search for the line containing this offset.
+	// This finds the first line where lineStarts[i] > offset, then subtracts 1.
+	// Since lineStarts[0] = 0 and offset >= 0, this always returns >= 0.
 	line = sort.Search(len(idx.lineStarts), func(i int) bool {
 		return idx.lineStarts[i] > offset
 	}) - 1
-
-	if line < 0 {
-		line = 0
-	}
 
 	col = offset - idx.lineStarts[line]
 	return line, col
@@ -95,14 +93,11 @@ func (idx *LineIndex) ByteOffsetToLineColumnUTF16(offset int) (line, col int) {
 		offset = len(idx.source)
 	}
 
-	// Find the line
+	// Find the line (same logic as ByteOffsetToLineColumn).
+	// Since lineStarts[0] = 0 and offset >= 0, this always returns >= 0.
 	line = sort.Search(len(idx.lineStarts), func(i int) bool {
 		return idx.lineStarts[i] > offset
 	}) - 1
-
-	if line < 0 {
-		line = 0
-	}
 
 	// Calculate UTF-16 column
 	lineStart := idx.lineStarts[line]

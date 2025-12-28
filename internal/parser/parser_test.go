@@ -89,6 +89,18 @@ func expectNoParse(t *testing.T, input string) {
 	})
 }
 
+func expectNoError(t *testing.T, input string) {
+	t.Helper()
+	t.Run(input, func(t *testing.T) {
+		t.Helper()
+		p := New(input)
+		_, errs := p.Parse()
+		if len(errs) > 0 {
+			t.Errorf("unexpected parse errors for %q: %v", input, errs)
+		}
+	})
+}
+
 // ----------------------------------------------------------------------------
 // Const Declaration Tests
 // ----------------------------------------------------------------------------
@@ -1341,4 +1353,204 @@ func TestConstAssertMissingSemi(t *testing.T) {
 func TestUnclosedCompoundStatement(t *testing.T) {
 	// Missing closing brace
 	expectNoParse(t, "fn foo() {")
+}
+
+// ----------------------------------------------------------------------------
+// Depth Texture Types
+// ----------------------------------------------------------------------------
+
+func TestDepthTextureTypes(t *testing.T) {
+	// Normal depth textures (parsed as IdentType since no template args)
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_2d;",
+		"@group(0) @binding(0) var t: texture_depth_2d;\n")
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_2d_array;",
+		"@group(0) @binding(0) var t: texture_depth_2d_array;\n")
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_cube;",
+		"@group(0) @binding(0) var t: texture_depth_cube;\n")
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_cube_array;",
+		"@group(0) @binding(0) var t: texture_depth_cube_array;\n")
+	expectPrinted(t, "@group(0) @binding(0) var t: texture_depth_multisampled_2d;",
+		"@group(0) @binding(0) var t: texture_depth_multisampled_2d;\n")
+}
+
+func TestDepthTextureTypesTemplated(t *testing.T) {
+	// Depth textures with empty template args (unusual but covers parseTextureType)
+	expectNoError(t, "var t: texture_depth_2d<>;")
+	expectNoError(t, "var t: texture_depth_2d_array<>;")
+	expectNoError(t, "var t: texture_depth_cube<>;")
+	expectNoError(t, "var t: texture_depth_cube_array<>;")
+	expectNoError(t, "var t: texture_depth_multisampled_2d<>;")
+}
+
+// ----------------------------------------------------------------------------
+// Boolean Literals in Template Expressions
+// ----------------------------------------------------------------------------
+
+func TestBooleanTemplateExpr(t *testing.T) {
+	expectPrinted(t, "const x = true;", "const x = true;\n")
+	expectPrinted(t, "const x = false;", "const x = false;\n")
+}
+
+// ----------------------------------------------------------------------------
+// Unary Not Expression
+// ----------------------------------------------------------------------------
+
+func TestUnaryNotExpr(t *testing.T) {
+	expectPrinted(t, "const x = !true;", "const x = !true;\n")
+	expectPrinted(t, "const x = !false;", "const x = !false;\n")
+}
+
+// ----------------------------------------------------------------------------
+// const_assert at Module Level
+// ----------------------------------------------------------------------------
+
+func TestConstAssertAtModuleLevel(t *testing.T) {
+	expectPrinted(t, "const_assert true;", "const_assert true;\n")
+	expectPrinted(t, "const_assert 1 == 1;", "const_assert 1 == 1;\n")
+	// Legacy syntax: const const_assert
+	expectNoError(t, "const const_assert true;")
+}
+
+// ----------------------------------------------------------------------------
+// Invalid Texture Type
+// ----------------------------------------------------------------------------
+
+func TestInvalidTextureType(t *testing.T) {
+	// Non-texture type identifier should not be parsed as texture
+	expectPrinted(t, "fn f(x: SomeType) {}", "fn f(x: SomeType) {\n}\n")
+}
+
+// ----------------------------------------------------------------------------
+// Struct Member Errors
+// ----------------------------------------------------------------------------
+
+func TestStructMissingMemberType(t *testing.T) {
+	expectNoParse(t, "struct S { x }")
+}
+
+// ----------------------------------------------------------------------------
+// For Loop Errors
+// ----------------------------------------------------------------------------
+
+func TestForLoopMissingParen(t *testing.T) {
+	expectNoParse(t, "fn f() { for var i = 0; i < 10; i++ { } }")
+}
+
+// ----------------------------------------------------------------------------
+// Switch Statement Default Case
+// ----------------------------------------------------------------------------
+
+func TestSwitchDefaultOnly(t *testing.T) {
+	expectPrinted(t,
+		"fn f() { var x: i32; switch x { default: { return; } } }",
+		"fn f() {\n    var x: i32;\n    switch x {\n        default: {\n            return;\n        }\n    }\n}\n")
+}
+
+// ----------------------------------------------------------------------------
+// For Loop Expression Initializer
+// ----------------------------------------------------------------------------
+
+func TestForLoopExpressionInit(t *testing.T) {
+	// For loop with expression initializer (not var/let)
+	expectNoError(t, "fn f() { var i: i32; for (i = 0; i < 10; i += 1) { } }")
+}
+
+// ----------------------------------------------------------------------------
+// Generic Templated Types
+// ----------------------------------------------------------------------------
+
+func TestGenericTemplatedType(t *testing.T) {
+	// Unknown templated type - template args are consumed
+	expectNoError(t, "fn f(x: SomeType<i32>) {}")
+	expectNoError(t, "fn f(x: SomeType<i32, f32>) {}")
+	expectNoError(t, "fn f(x: SomeType<i32, f32, u32>) {}")
+}
+
+// ----------------------------------------------------------------------------
+// Empty Var Template Args
+// ----------------------------------------------------------------------------
+
+func TestEmptyVarTemplateArgs(t *testing.T) {
+	// Var with empty template args - returns AddressSpaceNone
+	expectNoError(t, "var<> x: i32;")
+	// Var with trailing comma but missing access mode - returns AccessModeNone
+	expectNoError(t, "var<storage,> x: i32;")
+}
+
+// ----------------------------------------------------------------------------
+// Template Unary Bang in Expressions
+// ----------------------------------------------------------------------------
+
+func TestTemplateUnaryBang(t *testing.T) {
+	// Unary not in template argument context
+	// Use a more complex template expression to hit the parseTemplateUnaryExpr path
+	expectNoError(t, "alias T = vec2<f32>;")
+	// Unary negation in template expressions
+	expectNoError(t, "alias T = array<i32, -1>;")
+	// Unary bitwise not in template expressions
+	expectNoError(t, "alias T = array<i32, ~0>;")
+	// Unary logical not in template expressions
+	expectNoError(t, "alias T = array<i32, 1 * !0>;")
+}
+
+// ----------------------------------------------------------------------------
+// Template Boolean Primary Expressions
+// ----------------------------------------------------------------------------
+
+func TestTemplateBooleanPrimary(t *testing.T) {
+	// Boolean literals in template argument context
+	// Parser accepts these even if semantically invalid for array size
+	expectNoError(t, "alias T = array<i32, true>;")
+	expectNoError(t, "alias T = array<i32, false>;")
+}
+
+// ----------------------------------------------------------------------------
+// Error Recovery Tests
+// ----------------------------------------------------------------------------
+
+func TestEnableDirectiveTrailingComma(t *testing.T) {
+	// Trailing comma in enable directive
+	expectNoParse(t, "enable f16,;")
+	// Leading comma (no feature before first comma)
+	expectNoParse(t, "enable ,;")
+}
+
+func TestUnexpectedAttributes(t *testing.T) {
+	// Attributes on declaration type that doesn't support them
+	expectNoParse(t, "@group(0) ;")
+}
+
+func TestStructUnexpectedToken(t *testing.T) {
+	// Invalid token in struct body
+	expectNoParse(t, "struct S { @ }")
+}
+
+func TestBlockUnexpectedToken(t *testing.T) {
+	// Invalid token in block
+	expectNoParse(t, "fn f() { @ }")
+}
+
+func TestSwitchUnexpectedToken(t *testing.T) {
+	// Invalid token in switch
+	expectNoParse(t, "fn f() { var x: i32; switch x { @ } }")
+}
+
+// ----------------------------------------------------------------------------
+// Const Expression Evaluation Edge Cases
+// ----------------------------------------------------------------------------
+
+func TestConstExprWithNonConstOperand(t *testing.T) {
+	// Unary negation of non-constant - triggers ConstNone branch
+	expectNoError(t, "var x: i32; const a = -x;")
+}
+
+// ----------------------------------------------------------------------------
+// Templated Constructor Edge Case
+// ----------------------------------------------------------------------------
+
+func TestTemplatedTypeAsExpressionNotConstructor(t *testing.T) {
+	// Templated type in expression position but not followed by (
+	// This triggers the "not a constructor" branch in parseTemplatedConstructor
+	expectNoError(t, "fn f() { let x = vec2<f32>; }")
+	expectNoError(t, "fn f() { let x = array<i32, 5>; }")
 }

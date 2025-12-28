@@ -958,3 +958,25 @@ fn unused_helper() -> f32 {
 		t.Errorf("expected at least 2 dead symbols, got %d", dead)
 	}
 }
+
+// ----------------------------------------------------------------------------
+// Additional Coverage Tests
+// ----------------------------------------------------------------------------
+
+func TestCollectDeclDeps_LetDecl(t *testing.T) {
+	// Test LetDecl branch directly (LetDecl normally only appears inside functions,
+	// but we can test the branch by calling collectDeclDeps directly)
+	deps := make(map[uint32][]uint32)
+	collectDeclDeps(&ast.LetDecl{
+		Name:        ast.Ref{InnerIndex: 5},
+		Type:        &ast.IdentType{Name: "i32", Ref: ast.Ref{InnerIndex: 10}},
+		Initializer: &ast.IdentExpr{Name: "x", Ref: ast.Ref{InnerIndex: 11}},
+	}, deps)
+	if len(deps) != 1 {
+		t.Errorf("expected 1 dependency entry, got %d", len(deps))
+	}
+	if _, exists := deps[5]; !exists {
+		t.Error("expected dependency entry for LetDecl with InnerIndex 5")
+	}
+}
+

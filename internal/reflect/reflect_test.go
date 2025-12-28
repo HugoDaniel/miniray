@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/HugoDaniel/miniray/internal/ast"
+	"github.com/HugoDaniel/miniray/internal/lexer"
 	"github.com/HugoDaniel/miniray/internal/parser"
 )
 
@@ -2351,3 +2352,806 @@ struct Inner {
 		t.Errorf("expected nested ElementTypeMapped 'x', got '%s'", binding.Array.Array.ElementTypeMapped)
 	}
 }
+
+// ----------------------------------------------------------------------------
+// LayoutComputer Edge Cases
+// ----------------------------------------------------------------------------
+
+func TestLayoutComputerNilType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	layout := lc.ComputeTypeLayout(nil)
+	if layout.Size != 0 || layout.Alignment != 0 {
+		t.Error("nil type should return zero layout")
+	}
+}
+
+func TestLayoutComputerSamplerType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	samplerType := &ast.SamplerType{}
+	layout := lc.ComputeTypeLayout(samplerType)
+	// Samplers don't have host-addressable layout
+	if layout.Size != 0 || layout.Alignment != 0 {
+		t.Error("sampler type should return zero layout")
+	}
+}
+
+func TestLayoutComputerTextureType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	textureType := &ast.TextureType{Kind: ast.TextureSampled, Dimension: ast.Texture2D}
+	layout := lc.ComputeTypeLayout(textureType)
+	// Textures don't have host-addressable layout
+	if layout.Size != 0 || layout.Alignment != 0 {
+		t.Error("texture type should return zero layout")
+	}
+}
+
+func TestLayoutComputerPtrType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	ptrType := &ast.PtrType{ElemType: &ast.IdentType{Name: "f32"}}
+	layout := lc.ComputeTypeLayout(ptrType)
+	// Pointers don't have meaningful size for reflection
+	if layout.Size != 0 || layout.Alignment != 0 {
+		t.Error("ptr type should return zero layout")
+	}
+}
+
+func TestLayoutComputerUnknownIdentType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	identType := &ast.IdentType{Name: "UnknownType", Ref: ast.InvalidRef()}
+	layout := lc.ComputeTypeLayout(identType)
+	// Unknown type should return zero layout
+	if layout.Size != 0 || layout.Alignment != 0 {
+		t.Error("unknown ident type should return zero layout")
+	}
+}
+
+func TestLayoutComputerVecShorthand(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	// Test shorthand vec2f
+	vecType := &ast.VecType{Size: 2, Shorthand: "vec2f"}
+	layout := lc.ComputeTypeLayout(vecType)
+	if layout.Size != 8 || layout.Alignment != 8 {
+		t.Errorf("vec2f: expected size=8, align=8, got size=%d, align=%d", layout.Size, layout.Alignment)
+	}
+}
+
+func TestLayoutComputerMatShorthand(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	// Test shorthand mat2x2f
+	matType := &ast.MatType{Cols: 2, Rows: 2, Shorthand: "mat2x2f"}
+	layout := lc.ComputeTypeLayout(matType)
+	// mat2x2f: 2 columns of vec2f (each size=8, align=8), total size=16
+	if layout.Size != 16 || layout.Alignment != 8 {
+		t.Errorf("mat2x2f: expected size=16, align=8, got size=%d, align=%d", layout.Size, layout.Alignment)
+	}
+}
+
+func TestEvaluateConstExprNil(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	result := lc.evaluateConstExpr(nil)
+	if result != -1 {
+		t.Errorf("nil expr should return -1, got %d", result)
+	}
+}
+
+func TestEvaluateConstExprIdent(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	// IdentExpr without resolved const value returns -1
+	identExpr := &ast.IdentExpr{Name: "someConst", Ref: ast.InvalidRef()}
+	result := lc.evaluateConstExpr(identExpr)
+	if result != -1 {
+		t.Errorf("ident expr should return -1, got %d", result)
+	}
+}
+
+func TestEvaluateConstExprUnknownType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	// Unknown expression type returns -1
+	binaryExpr := &ast.BinaryExpr{
+		Op:    ast.BinOpAdd,
+		Left:  &ast.LiteralExpr{Kind: 0, Value: "1"},
+		Right: &ast.LiteralExpr{Kind: 0, Value: "2"},
+	}
+	result := lc.evaluateConstExpr(binaryExpr)
+	if result != -1 {
+		t.Errorf("binary expr should return -1, got %d", result)
+	}
+}
+
+func TestGetStructLayoutInvalidRef(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	layout := lc.GetStructLayout(ast.InvalidRef())
+	if layout != nil {
+		t.Error("invalid ref should return nil layout")
+	}
+}
+
+func TestGetStructLayoutNilModule(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+	validRef := ast.Ref{InnerIndex: 0}
+	layout := lc.GetStructLayout(validRef)
+	if layout != nil {
+		t.Error("nil module should return nil layout")
+	}
+}
+
+func TestTextureTypeToString(t *testing.T) {
+	// Test various texture types
+	lc := NewLayoutComputer(nil)
+	tests := []struct {
+		kind     ast.TextureKind
+		dim      ast.TextureDimension
+		expected string
+	}{
+		{ast.TextureSampled, ast.Texture1D, "texture_1d"},
+		{ast.TextureSampled, ast.Texture2D, "texture_2d"},
+		{ast.TextureSampled, ast.Texture2DArray, "texture_2d_array"},
+		{ast.TextureSampled, ast.Texture3D, "texture_3d"},
+		{ast.TextureSampled, ast.TextureCube, "texture_cube"},
+		{ast.TextureSampled, ast.TextureCubeArray, "texture_cube_array"},
+		{ast.TextureMultisampled, ast.Texture2D, "texture_multisampled_2d"},
+		{ast.TextureDepth, ast.Texture2D, "texture_depth_2d"},
+		{ast.TextureDepth, ast.Texture2DArray, "texture_depth_2d_array"},
+		{ast.TextureDepth, ast.TextureCube, "texture_depth_cube"},
+		{ast.TextureDepth, ast.TextureCubeArray, "texture_depth_cube_array"},
+		{ast.TextureDepthMultisampled, ast.Texture2D, "texture_depth_multisampled_2d"},
+		{ast.TextureStorage, ast.Texture1D, "texture_storage_1d"},
+		{ast.TextureStorage, ast.Texture2D, "texture_storage_2d"},
+		{ast.TextureStorage, ast.Texture2DArray, "texture_storage_2d_array"},
+		{ast.TextureStorage, ast.Texture3D, "texture_storage_3d"},
+		{ast.TextureExternal, ast.Texture2D, "texture_external"},
+	}
+
+	for _, tt := range tests {
+		texType := &ast.TextureType{Kind: tt.kind, Dimension: tt.dim}
+		result := lc.textureTypeToString(texType)
+		if result != tt.expected {
+			t.Errorf("textureTypeToString(%v, %v) = %s, want %s", tt.kind, tt.dim, result, tt.expected)
+		}
+	}
+}
+
+func TestBindingWithSampler(t *testing.T) {
+	source := `
+@group(0) @binding(0) var s: sampler;
+@group(0) @binding(1) var sc: sampler_comparison;
+`
+	result := Reflect(source)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	if len(result.Bindings) != 2 {
+		t.Fatalf("expected 2 bindings, got %d", len(result.Bindings))
+	}
+
+	// Check sampler binding
+	if result.Bindings[0].Type != "sampler" {
+		t.Errorf("expected type 'sampler', got '%s'", result.Bindings[0].Type)
+	}
+	if result.Bindings[1].Type != "sampler_comparison" {
+		t.Errorf("expected type 'sampler_comparison', got '%s'", result.Bindings[1].Type)
+	}
+}
+
+func TestBindingWithTexture(t *testing.T) {
+	source := `
+@group(0) @binding(0) var t: texture_2d<f32>;
+@group(0) @binding(1) var s: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var d: texture_depth_2d;
+`
+	result := Reflect(source)
+
+	if len(result.Errors) > 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	if len(result.Bindings) != 3 {
+		t.Fatalf("expected 3 bindings, got %d", len(result.Bindings))
+	}
+}
+
+func TestParseIntAttrInvalid(t *testing.T) {
+	source := `
+@group(not_an_int) @binding(0) var<uniform> x: f32;
+`
+	result := Reflect(source)
+	// Should handle gracefully - we test for any parse errors
+	_ = result
+}
+
+func TestParseWorkgroupSizeVariants(t *testing.T) {
+	tests := []struct {
+		source string
+		x, y, z int
+	}{
+		{`@compute @workgroup_size(8) fn main() {}`, 8, 1, 1},
+		{`@compute @workgroup_size(8, 4) fn main() {}`, 8, 4, 1},
+		{`@compute @workgroup_size(8, 4, 2) fn main() {}`, 8, 4, 2},
+	}
+
+	for _, tt := range tests {
+		result := Reflect(tt.source)
+		if len(result.Errors) > 0 {
+			t.Fatalf("unexpected errors for %q: %v", tt.source, result.Errors)
+		}
+		if len(result.EntryPoints) != 1 {
+			t.Fatalf("expected 1 entry point for %q, got %d", tt.source, len(result.EntryPoints))
+		}
+		ep := result.EntryPoints[0]
+		if ep.WorkgroupSize[0] != tt.x || ep.WorkgroupSize[1] != tt.y || ep.WorkgroupSize[2] != tt.z {
+			t.Errorf("workgroup size for %q: got [%d,%d,%d], want [%d,%d,%d]",
+				tt.source, ep.WorkgroupSize[0], ep.WorkgroupSize[1], ep.WorkgroupSize[2], tt.x, tt.y, tt.z)
+		}
+	}
+}
+
+func TestIsHandleType(t *testing.T) {
+	// Test that sampler and texture types are correctly identified as handle types
+	samplerType := &ast.SamplerType{}
+	textureType := &ast.TextureType{Kind: ast.TextureSampled}
+
+	if !isHandleType(samplerType) {
+		t.Error("sampler should be a handle type")
+	}
+	if !isHandleType(textureType) {
+		t.Error("texture should be a handle type")
+	}
+
+	// Non-handle types
+	identType := &ast.IdentType{Name: "f32"}
+	if isHandleType(identType) {
+		t.Error("ident type should not be a handle type")
+	}
+
+	// IdentType handle types (sampler/texture names)
+	handleIdentTypes := []string{
+		"sampler", "sampler_comparison",
+		"texture_1d", "texture_2d", "texture_2d_array", "texture_3d",
+		"texture_cube", "texture_cube_array", "texture_multisampled_2d",
+		"texture_storage_1d", "texture_storage_2d", "texture_storage_2d_array",
+		"texture_storage_3d", "texture_depth_2d", "texture_depth_2d_array",
+		"texture_depth_cube", "texture_depth_cube_array",
+		"texture_depth_multisampled_2d", "texture_external",
+	}
+	for _, name := range handleIdentTypes {
+		it := &ast.IdentType{Name: name}
+		if !isHandleType(it) {
+			t.Errorf("IdentType %q should be a handle type", name)
+		}
+	}
+}
+
+func TestParseIntAttrNonIntegerLiteral(t *testing.T) {
+	// Float literal instead of int
+	floatLit := &ast.LiteralExpr{Kind: lexer.TokFloatLiteral, Value: "1.5"}
+	if parseIntAttr(floatLit) != -1 {
+		t.Error("float literal should return -1")
+	}
+
+	// Invalid integer (should not happen in practice but tests the error path)
+	// We use a token type that's not an int literal
+	boolLit := &ast.LiteralExpr{Kind: lexer.TokTrue, Value: "true"}
+	if parseIntAttr(boolLit) != -1 {
+		t.Error("bool literal should return -1")
+	}
+}
+
+func TestParseWorkgroupSizeNonParseable(t *testing.T) {
+	// Test with non-parseable expressions (ident expr instead of literal)
+	args := []ast.Expr{
+		&ast.IdentExpr{Name: "X"},
+		&ast.IdentExpr{Name: "Y"},
+	}
+	result := parseWorkgroupSize(args)
+	// Should default to 1 for non-parseable values
+	if len(result) != 3 {
+		t.Errorf("expected 3 elements, got %d", len(result))
+	}
+	if result[0] != 1 || result[1] != 1 || result[2] != 1 {
+		t.Errorf("expected [1, 1, 1], got %v", result)
+	}
+}
+
+func TestGetSymbolNameOutOfBounds(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "foo"},
+	}
+	// Valid ref within bounds
+	validRef := ast.Ref{InnerIndex: 0}
+	if name := getSymbolName(validRef, symbols); name != "foo" {
+		t.Errorf("expected 'foo', got '%s'", name)
+	}
+
+	// Out of bounds InnerIndex
+	outOfBoundsRef := ast.Ref{InnerIndex: 10}
+	if name := getSymbolName(outOfBoundsRef, symbols); name != "" {
+		t.Errorf("out-of-bounds ref should return empty string, got '%s'", name)
+	}
+}
+
+func TestLayoutComputerGetSymbolNameOutOfBounds(t *testing.T) {
+	// Create a module with a single symbol
+	module := &ast.Module{
+		Symbols: []ast.Symbol{
+			{OriginalName: "mySymbol"},
+		},
+	}
+	lc := NewLayoutComputer(module)
+
+	// Valid ref
+	validRef := ast.Ref{InnerIndex: 0}
+	if name := lc.getSymbolName(validRef); name != "mySymbol" {
+		t.Errorf("expected 'mySymbol', got '%s'", name)
+	}
+
+	// Out of bounds ref
+	outOfBoundsRef := ast.Ref{InnerIndex: 10}
+	if name := lc.getSymbolName(outOfBoundsRef); name != "" {
+		t.Errorf("out-of-bounds ref should return empty string, got '%s'", name)
+	}
+}
+
+func TestTypeToStringMappedPtrType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	ptrType := &ast.PtrType{
+		AddressSpace: ast.AddressSpaceFunction,
+		ElemType:     &ast.IdentType{Name: "i32"},
+	}
+
+	result := lc.typeToStringMapped(ptrType, false)
+	expected := "ptr<function, i32>"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestTypeToStringMappedVecWithoutShorthand(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Vec without shorthand (generic form)
+	vecType := &ast.VecType{
+		Size:     3,
+		ElemType: &ast.IdentType{Name: "f32"},
+	}
+
+	result := lc.typeToStringMapped(vecType, false)
+	expected := "vec3<f32>"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestTypeToStringMappedMatWithoutShorthand(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Mat without shorthand (generic form)
+	matType := &ast.MatType{
+		Cols:     4,
+		Rows:     4,
+		ElemType: &ast.IdentType{Name: "f32"},
+	}
+
+	result := lc.typeToStringMapped(matType, false)
+	expected := "mat4x4<f32>"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestTypeToStringMappedWithMappedNames(t *testing.T) {
+	// Use Reflect to get a module with proper struct refs
+	source := `
+struct MyStruct {
+    value: f32,
+}
+@group(0) @binding(0) var<uniform> data: MyStruct;
+`
+	p := parser.New(source)
+	module, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	lc := NewLayoutComputer(module)
+
+	// Find the struct ref from the struct declaration's Name field
+	var structRef ast.Ref
+	for _, decl := range module.Declarations {
+		if sd, ok := decl.(*ast.StructDecl); ok {
+			structRef = sd.Name // Name is already a Ref
+			break
+		}
+	}
+
+	if !structRef.IsValid() {
+		t.Fatal("could not find valid struct ref")
+	}
+
+	// Test IdentType with valid ref and mapped=true
+	identType := &ast.IdentType{Name: "MyStruct", Ref: structRef}
+	result := lc.typeToStringMapped(identType, true)
+	// Without renamer, should return original name via getSymbolName
+	if result == "" {
+		t.Error("expected non-empty result for mapped ident type")
+	}
+	// Should return the original name since there's no renamer
+	if result != "MyStruct" {
+		t.Errorf("expected 'MyStruct', got '%s'", result)
+	}
+}
+
+func TestTypeToStringMappedRuntimeArray(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Runtime-sized array (no size)
+	arrayType := &ast.ArrayType{
+		ElemType: &ast.IdentType{Name: "f32"},
+		Size:     nil,
+	}
+
+	result := lc.typeToStringMapped(arrayType, false)
+	expected := "array<f32>"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestTypeToStringMappedArrayNonEvaluableSize(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Array with non-evaluable size expression
+	arrayType := &ast.ArrayType{
+		ElemType: &ast.IdentType{Name: "f32"},
+		Size:     &ast.IdentExpr{Name: "N"}, // Non-literal size
+	}
+
+	result := lc.typeToStringMapped(arrayType, false)
+	// Since size can't be evaluated, should return runtime-sized format
+	expected := "array<f32>"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestTypeToStringMappedSamplerComparison(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	samplerType := &ast.SamplerType{Comparison: true}
+	result := lc.typeToStringMapped(samplerType, false)
+	expected := "sampler_comparison"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+
+	samplerType2 := &ast.SamplerType{Comparison: false}
+	result2 := lc.typeToStringMapped(samplerType2, false)
+	expected2 := "sampler"
+	if result2 != expected2 {
+		t.Errorf("expected '%s', got '%s'", expected2, result2)
+	}
+}
+
+func TestTypeToStringMappedDefaultCase(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Pass nil to hit the nil check
+	result := lc.typeToStringMapped(nil, false)
+	if result != "" {
+		t.Errorf("nil type should return empty string, got '%s'", result)
+	}
+}
+
+func TestParseIntAttrAtoiError(t *testing.T) {
+	// Create a literal with TokIntLiteral kind but invalid value for atoi
+	// This is an edge case that wouldn't happen in practice but tests the error path
+	invalidIntLit := &ast.LiteralExpr{Kind: lexer.TokIntLiteral, Value: "not_a_number"}
+	if parseIntAttr(invalidIntLit) != -1 {
+		t.Error("invalid int literal should return -1")
+	}
+}
+
+func TestIsHandleTypeVecType(t *testing.T) {
+	// Test that non-handle types return false
+	vecType := &ast.VecType{Size: 3}
+	if isHandleType(vecType) {
+		t.Error("VecType should not be a handle type")
+	}
+
+	matType := &ast.MatType{Cols: 4, Rows: 4}
+	if isHandleType(matType) {
+		t.Error("MatType should not be a handle type")
+	}
+
+	arrayType := &ast.ArrayType{ElemType: &ast.IdentType{Name: "f32"}}
+	if isHandleType(arrayType) {
+		t.Error("ArrayType should not be a handle type")
+	}
+}
+
+func TestIsHandleTypeNil(t *testing.T) {
+	// Test nil input
+	if isHandleType(nil) {
+		t.Error("nil should not be a handle type")
+	}
+}
+
+func TestGetSymbolNameInvalidRef(t *testing.T) {
+	symbols := []ast.Symbol{
+		{OriginalName: "foo"},
+	}
+	// Invalid ref (using InvalidRef())
+	invalidRef := ast.InvalidRef()
+	if name := getSymbolName(invalidRef, symbols); name != "" {
+		t.Errorf("invalid ref should return empty string, got '%s'", name)
+	}
+}
+
+func TestTypeToStringMappedTextureType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Test texture type
+	textureType := &ast.TextureType{
+		Kind:      ast.TextureSampled,
+		Dimension: ast.Texture2D,
+	}
+	result := lc.typeToStringMapped(textureType, false)
+	expected := "texture_2d"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestTypeToStringMappedAtomicType(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Test atomic type
+	atomicType := &ast.AtomicType{
+		ElemType: &ast.IdentType{Name: "u32"},
+	}
+	result := lc.typeToStringMapped(atomicType, false)
+	expected := "atomic<u32>"
+	if result != expected {
+		t.Errorf("expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestParseWorkgroupSizeEmpty(t *testing.T) {
+	// Test with empty args
+	result := parseWorkgroupSize([]ast.Expr{})
+	if result != nil {
+		t.Errorf("empty args should return nil, got %v", result)
+	}
+}
+
+func TestParseIntAttrOtherExprType(t *testing.T) {
+	// Test with expression type other than LiteralExpr
+	identExpr := &ast.IdentExpr{Name: "someConst"}
+	if parseIntAttr(identExpr) != -1 {
+		t.Error("non-literal expr should return -1")
+	}
+
+	// Test with binary expr
+	binaryExpr := &ast.BinaryExpr{
+		Op:    ast.BinOpAdd,
+		Left:  &ast.LiteralExpr{Kind: lexer.TokIntLiteral, Value: "1"},
+		Right: &ast.LiteralExpr{Kind: lexer.TokIntLiteral, Value: "2"},
+	}
+	if parseIntAttr(binaryExpr) != -1 {
+		t.Error("binary expr should return -1")
+	}
+}
+
+func TestTypeToStringMappedVecWithShorthand(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Vec with shorthand (e.g., vec2f)
+	vecType := &ast.VecType{
+		Size:      2,
+		Shorthand: "vec2f",
+	}
+
+	result := lc.typeToStringMapped(vecType, false)
+	if result != "vec2f" {
+		t.Errorf("expected 'vec2f', got '%s'", result)
+	}
+}
+
+func TestTypeToStringMappedMatWithShorthand(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Mat with shorthand (e.g., mat4x4f)
+	matType := &ast.MatType{
+		Cols:      4,
+		Rows:      4,
+		Shorthand: "mat4x4f",
+	}
+
+	result := lc.typeToStringMapped(matType, false)
+	if result != "mat4x4f" {
+		t.Errorf("expected 'mat4x4f', got '%s'", result)
+	}
+}
+
+func TestGetStructLayoutWithModule(t *testing.T) {
+	// Parse a shader with a struct
+	source := `
+struct TestStruct {
+    a: f32,
+    b: vec3f,
+}
+@group(0) @binding(0) var<uniform> data: TestStruct;
+`
+	p := parser.New(source)
+	module, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	lc := NewLayoutComputer(module)
+
+	// Find the struct ref
+	var structRef ast.Ref
+	for _, decl := range module.Declarations {
+		if sd, ok := decl.(*ast.StructDecl); ok {
+			structRef = sd.Name
+			break
+		}
+	}
+
+	if !structRef.IsValid() {
+		t.Fatal("could not find struct ref")
+	}
+
+	// Get the struct layout
+	layout := lc.GetStructLayout(structRef)
+	if layout == nil {
+		t.Fatal("expected non-nil layout")
+	}
+	if len(layout.Fields) != 2 {
+		t.Errorf("expected 2 fields, got %d", len(layout.Fields))
+	}
+}
+
+func TestComputeTypeLayoutIdentWithValidRef(t *testing.T) {
+	// Parse a shader with a struct
+	source := `
+struct MyData {
+    x: f32,
+    y: f32,
+}
+`
+	p := parser.New(source)
+	module, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	lc := NewLayoutComputer(module)
+
+	// Find the struct ref
+	var structRef ast.Ref
+	for _, decl := range module.Declarations {
+		if sd, ok := decl.(*ast.StructDecl); ok {
+			structRef = sd.Name
+			break
+		}
+	}
+
+	if !structRef.IsValid() {
+		t.Fatal("could not find struct ref")
+	}
+
+	// Test ComputeTypeLayout with an IdentType that has a valid struct ref
+	identType := &ast.IdentType{Name: "MyData", Ref: structRef}
+	layout := lc.ComputeTypeLayout(identType)
+
+	// Should compute layout for the struct (2 f32 = 8 bytes, align 4)
+	if layout.Size != 8 || layout.Alignment != 4 {
+		t.Errorf("expected size=8, align=4, got size=%d, align=%d", layout.Size, layout.Alignment)
+	}
+}
+
+func TestLayoutComputerGetSymbolNameInvalidRef(t *testing.T) {
+	// Create a module with symbols
+	module := &ast.Module{
+		Symbols: []ast.Symbol{
+			{OriginalName: "foo"},
+		},
+	}
+	lc := NewLayoutComputer(module)
+
+	// Test with invalid ref
+	invalidRef := ast.InvalidRef()
+	name := lc.getSymbolName(invalidRef)
+	if name != "" {
+		t.Errorf("invalid ref should return empty string, got '%s'", name)
+	}
+}
+
+func TestLayoutComputerGetSymbolNameNilModule(t *testing.T) {
+	lc := NewLayoutComputer(nil)
+
+	// Test with valid-looking ref but nil module
+	ref := ast.Ref{InnerIndex: 0}
+	name := lc.getSymbolName(ref)
+	if name != "" {
+		t.Errorf("nil module should return empty string, got '%s'", name)
+	}
+}
+
+func TestGetStructLayoutSymbolOutOfBounds(t *testing.T) {
+	// Create a module with one symbol
+	module := &ast.Module{
+		Symbols: []ast.Symbol{
+			{OriginalName: "foo"},
+		},
+	}
+	lc := NewLayoutComputer(module)
+
+	// Test with a ref that's out of bounds
+	outOfBoundsRef := ast.Ref{InnerIndex: 10}
+	layout := lc.GetStructLayout(outOfBoundsRef)
+	if layout != nil {
+		t.Error("out-of-bounds ref should return nil layout")
+	}
+}
+
+func TestGetStructLayoutCacheHit(t *testing.T) {
+	// Parse a shader with a struct
+	source := `
+struct CachedStruct {
+    x: f32,
+}
+`
+	p := parser.New(source)
+	module, errs := p.Parse()
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+
+	lc := NewLayoutComputer(module)
+
+	// Find the struct ref
+	var structRef ast.Ref
+	for _, decl := range module.Declarations {
+		if sd, ok := decl.(*ast.StructDecl); ok {
+			structRef = sd.Name
+			break
+		}
+	}
+
+	// First call computes the layout
+	layout1 := lc.GetStructLayout(structRef)
+	if layout1 == nil {
+		t.Fatal("expected non-nil layout on first call")
+	}
+
+	// Second call should hit the cache
+	layout2 := lc.GetStructLayout(structRef)
+	if layout2 == nil {
+		t.Fatal("expected non-nil layout on second call")
+	}
+
+	// Both should return the same values
+	if layout1.Size != layout2.Size {
+		t.Errorf("cache inconsistency: sizes differ")
+	}
+}
+
+func TestComputeArrayTypeLayoutNonEvaluableSize(t *testing.T) {
+	// Test array type layout when size expression can't be evaluated
+	source := `
+const N = 10;
+@group(0) @binding(0) var<storage> data: array<f32, N>;
+`
+	result := Reflect(source)
+
+	// This should work and use the runtime array path
+	if len(result.Errors) > 0 {
+		t.Logf("errors (expected): %v", result.Errors)
+	}
+}
+

@@ -145,18 +145,6 @@ func (p *Parser) expect(kind lexer.TokenKind) (lexer.Token, bool) {
 	return tok, true
 }
 
-// expectAndSkip is like expect but advances even on error to prevent infinite loops
-func (p *Parser) expectAndSkip(kind lexer.TokenKind) (lexer.Token, bool) {
-	tok := p.current()
-	if tok.Kind != kind {
-		p.error(fmt.Sprintf("expected %s, got %s", kind, tok.Kind))
-		p.advance() // Skip the unexpected token to avoid infinite loop
-		return tok, false
-	}
-	p.advance()
-	return tok, true
-}
-
 func (p *Parser) match(kind lexer.TokenKind) bool {
 	if p.current().Kind == kind {
 		p.advance()
@@ -176,10 +164,6 @@ func (p *Parser) error(msg string) {
 // ----------------------------------------------------------------------------
 // Symbol Table (Pass 1)
 // ----------------------------------------------------------------------------
-
-func (p *Parser) declareSymbol(name string, kind ast.SymbolKind, flags ast.SymbolFlags) ast.Ref {
-	return p.declareSymbolAt(name, kind, flags, p.current().Start)
-}
 
 func (p *Parser) declareSymbolAt(name string, kind ast.SymbolKind, flags ast.SymbolFlags, loc int) ast.Ref {
 	ref := ast.Ref{InnerIndex: uint32(len(p.symbols))}
@@ -488,6 +472,8 @@ func (p *Parser) visitExpr(e ast.Expr) ast.Expr {
 		return expr
 
 	default:
+		// All expression types are handled above - this is unreachable
+		// but we return e for safety in case new expression types are added
 		return e
 	}
 }
@@ -1032,7 +1018,6 @@ func (p *Parser) parseStructDecl() *ast.StructDecl {
 	p.expect(lexer.TokLBrace)
 
 	for p.current().Kind != lexer.TokRBrace && p.current().Kind != lexer.TokEOF {
-		startPos := p.pos
 		member := ast.StructMember{}
 		member.Attributes = p.parseAttributes()
 
@@ -1047,12 +1032,6 @@ func (p *Parser) parseStructDecl() *ast.StructDecl {
 
 		// Optional trailing comma
 		p.match(lexer.TokComma)
-
-		// Safety check: if we didn't advance, skip a token to prevent infinite loop
-		if p.pos == startPos {
-			p.error("unexpected token in struct")
-			p.advance()
-		}
 	}
 
 	p.expect(lexer.TokRBrace)
@@ -1773,15 +1752,9 @@ func (p *Parser) parseCompoundStmt() *ast.CompoundStmt {
 
 	stmt := &ast.CompoundStmt{}
 	for p.current().Kind != lexer.TokRBrace && p.current().Kind != lexer.TokEOF {
-		startPos := p.pos
 		s := p.parseStatement()
 		if s != nil {
 			stmt.Stmts = append(stmt.Stmts, s)
-		}
-		// Safety check: if we didn't advance, skip a token to prevent infinite loop
-		if p.pos == startPos {
-			p.error("unexpected token in block")
-			p.advance()
 		}
 	}
 
@@ -1828,7 +1801,6 @@ func (p *Parser) parseSwitchStmt() *ast.SwitchStmt {
 	p.expect(lexer.TokLBrace)
 
 	for p.current().Kind != lexer.TokRBrace && p.current().Kind != lexer.TokEOF {
-		startPos := p.pos
 		c := ast.SwitchCase{}
 
 		if p.match(lexer.TokDefault) {
@@ -1845,12 +1817,6 @@ func (p *Parser) parseSwitchStmt() *ast.SwitchStmt {
 		p.expect(lexer.TokColon)
 		c.Body = p.parseCompoundStmt()
 		stmt.Cases = append(stmt.Cases, c)
-
-		// Safety check: if we didn't advance, skip a token to prevent infinite loop
-		if p.pos == startPos {
-			p.error("unexpected token in switch")
-			p.advance()
-		}
 	}
 
 	p.expect(lexer.TokRBrace)
