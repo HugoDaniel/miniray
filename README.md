@@ -267,6 +267,7 @@ make test       # Run tests
 
 - [Why minify WGSL?](docs/why-minify-wgsl.md) - Benefits of shader minification
 - [Why pre-validate WGSL?](docs/why-pre-validate-wgsl.md) - Benefits of build-time validation
+- [Why reflect WGSL?](docs/why-reflect-wgsl.md) - Benefits of shader reflection
 - [npm package docs](npm/miniray/README.md) - JavaScript/TypeScript API
 - [C API docs](docs/C-API.md) - C library reference
 - [Building with miniray](BUILDING_WITH_MINIRAY.md) - Integration guide
