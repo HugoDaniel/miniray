@@ -1,10 +1,22 @@
 # miniray
 
-A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspired by [esbuild](https://esbuild.github.io/)'s architecture.
+A high-performance WGSL (WebGPU Shading Language) minifier written in Go,
+inspired by [esbuild](https://esbuild.github.io/)'s architecture.
+
+Designed to perform:
+
+- Minification (Extremely fast, with dead code elimination, and customizable
+  configurable parts)
+- Reflection (Outputs structured information about the shader, inputs, uniforms,
+  workgroups, buffer layouts, etc...)
+- Validation (Validates the shader, according to spec and Dawn WebGPU engine
+  shader tests)
 
 **[Try the online demo](https://hugodaniel.com/pages/miniray/)**
 
-> **Are you an LLM or AI agent?** See [`BUILDING_WITH_MINIRAY.md`](BUILDING_WITH_MINIRAY.md) for a token-efficient reference covering all options, patterns, and gotchas.
+> **Are you an LLM or AI agent?** See
+> [`BUILDING_WITH_MINIRAY.md`](BUILDING_WITH_MINIRAY.md) for a token-efficient
+> reference covering all options, patterns, and gotchas.
 
 ## Features
 
@@ -12,9 +24,12 @@ A high-performance WGSL (WebGPU Shading Language) minifier written in Go, inspir
 - **Identifier renaming** - Shorten local variable and function names
 - **Syntax optimization** - Optimize numeric literals and syntax patterns
 - **Source maps** - Generate v3 source maps for debugging minified shaders
-- **Shader reflection** - Extract bindings, struct layouts, and entry points with WGSL-spec memory layout computation
-- **Semantic validation** - Type checking, symbol resolution, and uniformity analysis
-- **API-aware** - Preserves entry point names, `@location`, `@binding`, and `@builtin` declarations
+- **Shader reflection** - Extract bindings, struct layouts, and entry points
+  with WGSL-spec memory layout computation
+- **Semantic validation** - Type checking, symbol resolution, and uniformity
+  analysis
+- **API-aware** - Preserves entry point names, `@location`, `@binding`, and
+  `@builtin` declarations
 - **WebAssembly build** - Run in browsers and Node.js via `miniray` package
 
 ## Installation
@@ -38,9 +53,9 @@ npm install miniray
 ```
 
 ```javascript
-import { initialize, minify } from 'miniray';
+import { initialize, minify } from "miniray";
 
-await initialize({ wasmURL: '/path/to/miniray.wasm' });
+await initialize({ wasmURL: "/path/to/miniray.wasm" });
 
 const result = minify(source, {
   minifyWhitespace: true,
@@ -86,25 +101,25 @@ miniray validate --strict shader.wgsl
 
 ### Options
 
-| Flag | Description |
-|------|-------------|
-| `-o <file>` | Write output to file (default: stdout) |
-| `--config <file>` | Use specific config file |
-| `--no-config` | Ignore config files |
-| `--minify` | Enable all minification (default) |
-| `--minify-whitespace` | Remove unnecessary whitespace |
-| `--minify-identifiers` | Shorten identifier names |
-| `--minify-syntax` | Apply syntax optimizations |
-| `--no-mangle` | Don't rename identifiers |
-| `--mangle-external-bindings` | Rename uniform/storage vars directly |
-| `--no-tree-shaking` | Disable dead code elimination |
+| Flag                              | Description                            |
+| --------------------------------- | -------------------------------------- |
+| `-o <file>`                       | Write output to file (default: stdout) |
+| `--config <file>`                 | Use specific config file               |
+| `--no-config`                     | Ignore config files                    |
+| `--minify`                        | Enable all minification (default)      |
+| `--minify-whitespace`             | Remove unnecessary whitespace          |
+| `--minify-identifiers`            | Shorten identifier names               |
+| `--minify-syntax`                 | Apply syntax optimizations             |
+| `--no-mangle`                     | Don't rename identifiers               |
+| `--mangle-external-bindings`      | Rename uniform/storage vars directly   |
+| `--no-tree-shaking`               | Disable dead code elimination          |
 | `--preserve-uniform-struct-types` | Preserve struct types used in uniforms |
-| `--keep-names <names>` | Comma-separated names to preserve |
-| `--source-map` | Generate source map file (.map) |
-| `--source-map-inline` | Embed source map as inline data URI |
-| `--source-map-sources` | Include original source in source map |
-| `--version` | Print version and exit |
-| `--help` | Print help and exit |
+| `--keep-names <names>`            | Comma-separated names to preserve      |
+| `--source-map`                    | Generate source map file (.map)        |
+| `--source-map-inline`             | Embed source map as inline data URI    |
+| `--source-map-sources`            | Include original source in source map  |
+| `--version`                       | Print version and exit                 |
+| `--help`                          | Print help and exit                    |
 
 ### Reflect Subcommand
 
@@ -114,12 +129,13 @@ Extract binding information, struct memory layouts, and entry points as JSON:
 miniray reflect [options] <input.wgsl>
 ```
 
-| Flag | Description |
-|------|-------------|
-| `-o <file>` | Write JSON output to file (default: stdout) |
+| Flag        | Description                                   |
+| ----------- | --------------------------------------------- |
+| `-o <file>` | Write JSON output to file (default: stdout)   |
 | `--compact` | Output compact JSON (default: pretty-printed) |
 
 Output includes:
+
 - `bindings`: Array of `@group/@binding` variables with memory layouts
 - `structs`: Map of struct names to their layouts (size, alignment, fields)
 - `entryPoints`: Array of entry point functions with stage and workgroup size
@@ -127,19 +143,23 @@ Output includes:
 
 ### Validate Subcommand
 
-Validate WGSL source for semantic errors:
+Miniray can validate WGSL source code without having to go through a WebGPU
+Shader Module.
+
+Use the `validate` subcommand to look for semantic errors:
 
 ```bash
 miniray validate [options] <input.wgsl>
 ```
 
-| Flag | Description |
-|------|-------------|
-| `-o <file>` | Write output to file (default: stdout) |
-| `--json` | Output JSON format with detailed diagnostics |
-| `--strict` | Treat warnings as errors |
+| Flag        | Description                                  |
+| ----------- | -------------------------------------------- |
+| `-o <file>` | Write output to file (default: stdout)       |
+| `--json`    | Output JSON format with detailed diagnostics |
+| `--strict`  | Treat warnings as errors                     |
 
 **Example output:**
+
 ```
 shader.wgsl:5:12: error: cannot return 'i32' from function returning 'f32' [E0200]
 shader.wgsl:8:5: warning: derivative_uniformity violation [W0001]
@@ -148,6 +168,7 @@ shader.wgsl:8:5: warning: derivative_uniformity violation [W0001]
 ```
 
 **JSON output (`--json`):**
+
 ```json
 {
   "valid": false,
@@ -166,6 +187,7 @@ shader.wgsl:8:5: warning: derivative_uniformity violation [W0001]
 ```
 
 **Validation checks:**
+
 - Type mismatches (assignments, return statements, function arguments)
 - Undefined symbols (variables, functions, types)
 - Invalid operations (operators, array indexing, member access)
@@ -175,21 +197,24 @@ shader.wgsl:8:5: warning: derivative_uniformity violation [W0001]
 
 ### Config File
 
-The minifier searches for config files in the current directory and parent directories:
+The minifier searches for config files in the current directory and parent
+directories:
+
 - `miniray.json`
 - `.minirayrc`
 - `.minirayrc.json`
 
 Example `miniray.json`:
+
 ```json
 {
-    "minifyWhitespace": true,
-    "minifyIdentifiers": true,
-    "minifySyntax": true,
-    "mangleExternalBindings": false,
-    "treeShaking": true,
-    "preserveUniformStructTypes": false,
-    "keepNames": ["myUniform", "myBuffer"]
+  "minifyWhitespace": true,
+  "minifyIdentifiers": true,
+  "minifySyntax": true,
+  "mangleExternalBindings": false,
+  "treeShaking": true,
+  "preserveUniformStructTypes": false,
+  "keepNames": ["myUniform", "myBuffer"]
 }
 ```
 
@@ -201,15 +226,18 @@ Pre-built configuration templates are available in the `configs/` directory:
 
 #### compute.toys
 
-[compute.toys](https://compute.toys) is a WebGPU compute shader playground. Use the provided config to preserve all platform-specific bindings and helpers:
+[compute.toys](https://compute.toys) is a WebGPU compute shader playground. Use
+the provided config to preserve all platform-specific bindings and helpers:
 
 ```bash
 miniray --config configs/compute.toys.json my_shader.wgsl
 ```
 
-Or copy `configs/compute.toys.json` to your project directory as `miniray.json` for automatic detection.
+Or copy `configs/compute.toys.json` to your project directory as `miniray.json`
+for automatic detection.
 
 **Preserved names:**
+
 - Uniforms: `time`, `mouse`, `custom`, `dispatch`
 - Textures: `screen`, `pass_in`, `pass_out`, `channel0`, `channel1`
 - Samplers: `nearest`, `bilinear`, `trilinear`, `*_repeat` variants
@@ -221,43 +249,21 @@ Or copy `configs/compute.toys.json` to your project directory as `miniray.json` 
 
 #### PNGine
 
-[PNGine](https://github.com/HugoDaniel/pngine) is a WebGPU DSL that embeds shader code in PNG files. It detects builtin uniforms by **struct type name**, so these must be preserved:
+[PNGine](https://github.com/HugoDaniel/pngine) is a WebGPU DSL that embeds
+shader code in PNG files. It detects builtin uniforms by **struct type name**,
+so these must be preserved:
 
 ```bash
 miniray --config configs/pngine.json shader.wgsl
 ```
 
-**Key feature:** Uses `preserveUniformStructTypes: true` to automatically preserve any struct type used in `var<uniform>` or `var<storage>` declarations.
-
-**Preserved names:**
-- Struct types: `PngineInputs`, `TimeInputs`, `CanvasInputs`, `SceneTimeInputs`, `GlobalTimeInputs`
-- Uniform variable names (preserved by default)
-- Struct field names (preserved by default - accessed via `.` operator)
-- Entry point function names
-
-**What gets renamed:**
-- Helper functions
-- Local variables and parameters
-- Struct types not used in uniform/storage declarations
-
-**Example:**
-```wgsl
-// Input
-struct PngineInputs { time: f32, canvasW: f32 }
-@group(0) @binding(0) var<uniform> inputs: PngineInputs;
-fn helper(t: f32) -> f32 { return t * 2.0; }
-@vertex fn vs() -> @builtin(position) vec4f {
-  let adjusted = helper(inputs.time);
-  return vec4f(adjusted);
-}
-
-// Output
-struct PngineInputs{time:f32,canvasW:f32}@group(0) @binding(0) var<uniform> inputs:PngineInputs;fn a(b:f32)->f32{return b*2.;}@vertex fn vs()->@builtin(position) vec4f{let c=a(inputs.time);return vec4f(c);}
-```
+Uses `preserveUniformStructTypes: true` to automatically preserve any struct
+type used in `var<uniform>` or `var<storage>` declarations.
 
 ### Source Maps
 
-Generate source maps to debug minified shaders by mapping back to original source positions.
+Generate source maps to debug minified shaders by mapping back to original
+source positions.
 
 ```bash
 # Generate external source map file (.map)
@@ -271,7 +277,8 @@ miniray --source-map-inline shader.wgsl > shader.min.wgsl
 miniray -o shader.min.wgsl --source-map --source-map-sources shader.wgsl
 ```
 
-The generated source map follows the [Source Map v3 specification](https://sourcemaps.info/spec.html):
+The generated source map follows the
+[Source Map v3 specification](https://sourcemaps.info/spec.html):
 
 ```json
 {
@@ -285,15 +292,20 @@ The generated source map follows the [Source Map v3 specification](https://sourc
 ```
 
 **What gets mapped:**
-- Renamed identifiers (variables, functions, structs) → original names in `names` array
+
+- Renamed identifiers (variables, functions, structs) → original names in
+  `names` array
 - Generated positions → source positions via VLQ-encoded `mappings`
 
 #### WebGPU Compatibility
 
-WebGPU does **not** natively consume source maps—there's no `sourceMap` field in `GPUShaderModuleDescriptor`. However, miniray's source maps use UTF-16 column positions matching WebGPU's `GPUCompilationMessage` format, making them suitable for custom error translation tooling:
+WebGPU does **not** natively consume source maps—there's no `sourceMap` field in
+`GPUShaderModuleDescriptor`. However, miniray's source maps use UTF-16 column
+positions matching WebGPU's `GPUCompilationMessage` format, making them suitable
+for custom error translation tooling:
 
 ```javascript
-import { SourceMapConsumer } from 'source-map';
+import { SourceMapConsumer } from "source-map";
 
 // Minify with source map
 const result = minify(source, { sourceMap: true, sourceMapSources: true });
@@ -307,7 +319,7 @@ for (const msg of info.messages) {
   if (msg.lineNum > 0) {
     const pos = consumer.originalPositionFor({
       line: msg.lineNum,
-      column: msg.linePos - 1  // source-map lib uses 0-based columns
+      column: msg.linePos - 1, // source-map lib uses 0-based columns
     });
     console.log(`${msg.type}: ${msg.message}`);
     console.log(`  Original: ${pos.source}:${pos.line}:${pos.column + 1}`);
@@ -318,10 +330,11 @@ for (const msg of info.messages) {
 
 ### Shader Reflection
 
-Extract binding information, struct memory layouts, and entry points from WGSL source:
+Extract binding information, struct memory layouts, and entry points from WGSL
+source:
 
 ```javascript
-import { initialize, reflect } from 'miniray';
+import { initialize, reflect } from "miniray";
 
 await initialize();
 
@@ -348,11 +361,13 @@ console.log(result.structs);
 // { "Uniforms": { size: 16, alignment: 8, fields: [...] } }
 ```
 
-Memory layouts follow the WGSL specification (vec3 has align=16, size=12; proper struct padding).
+Memory layouts follow the WGSL specification (vec3 has align=16, size=12; proper
+struct padding).
 
 #### Array Bindings
 
-For array type bindings (e.g., `array<Particle>` or `array<vec4f, 100>`), reflection provides detailed array metadata:
+For array type bindings (e.g., `array<Particle>` or `array<vec4f, 100>`),
+reflection provides detailed array metadata:
 
 ```javascript
 const result = reflect(`
@@ -373,7 +388,8 @@ console.log(binding.array);
 // }
 ```
 
-For nested arrays (e.g., `array<array<f32, 4>, 10>`), the `array` field contains nested `ArrayInfo`:
+For nested arrays (e.g., `array<array<f32, 4>, 10>`), the `array` field contains
+nested `ArrayInfo`:
 
 ```javascript
 // depth: 1 for outer, depth: 2 for inner
@@ -382,10 +398,11 @@ For nested arrays (e.g., `array<array<f32, 4>, 10>`), the `array` field contains
 
 #### Combined Minify + Reflect
 
-When you need both minified code and reflection data with actual minified names, use `minifyAndReflect`:
+When you need both minified code and reflection data with actual minified names,
+use `minifyAndReflect`:
 
 ```javascript
-import { initialize, minifyAndReflect } from 'miniray';
+import { initialize, minifyAndReflect } from "miniray";
 
 await initialize();
 
@@ -415,7 +432,8 @@ console.log(result.reflect.bindings[0]);
 // }
 ```
 
-This is useful when creating buffer bindings that need to reference minified struct field names.
+This is useful when creating buffer bindings that need to reference minified
+struct field names.
 
 ### Go API
 
@@ -554,6 +572,7 @@ int main() {
 ```
 
 Compile with:
+
 ```bash
 gcc -o example example.c -L./build -lminiray -lpthread -lm
 ```
@@ -635,6 +654,7 @@ miniray_free(json);
 ```
 
 **Validation options:**
+
 ```json
 {
   "strictMode": true,
@@ -646,12 +666,12 @@ miniray_free(json);
 
 #### Error Codes
 
-| Code | Constant | Description |
-|------|----------|-------------|
-| 0 | `MINIRAY_OK` | Success |
-| 1 | `MINIRAY_ERR_JSON_ENCODE` | Failed to encode JSON result |
-| 2 | `MINIRAY_ERR_NULL_INPUT` | NULL pointer passed for required parameter |
-| 3 | `MINIRAY_ERR_JSON_DECODE` | Failed to parse options JSON |
+| Code | Constant                  | Description                                |
+| ---- | ------------------------- | ------------------------------------------ |
+| 0    | `MINIRAY_OK`              | Success                                    |
+| 1    | `MINIRAY_ERR_JSON_ENCODE` | Failed to encode JSON result               |
+| 2    | `MINIRAY_ERR_NULL_INPUT`  | NULL pointer passed for required parameter |
+| 3    | `MINIRAY_ERR_JSON_DECODE` | Failed to parse options JSON               |
 
 #### Zig Example
 
@@ -681,6 +701,7 @@ pub fn minify(source: []const u8) ![]const u8 {
 ## What Gets Minified
 
 ### Always Preserved
+
 - Entry point function names (`@vertex`, `@fragment`, `@compute`)
 - `@builtin` names (e.g., `position`, `global_invocation_id`)
 - `@location` struct member names
@@ -689,7 +710,8 @@ pub fn minify(source: []const u8) ![]const u8 {
 
 ### External Bindings (uniform/storage)
 
-By default, `var<uniform>` and `var<storage>` declarations keep their original names for WebGPU binding reflection compatibility:
+By default, `var<uniform>` and `var<storage>` declarations keep their original
+names for WebGPU binding reflection compatibility:
 
 ```wgsl
 // Input
@@ -703,9 +725,11 @@ var<uniform> uniforms:Uniforms;let a=uniforms;fn b(){return a.value*2.0;}
 var<uniform> a:Uniforms;fn b(){return a.value*2.0;}
 ```
 
-Use `--mangle-external-bindings` only if you don't use WebGPU's binding reflection APIs.
+Use `--mangle-external-bindings` only if you don't use WebGPU's binding
+reflection APIs.
 
 ### Minified (with `--minify-identifiers`)
+
 - Local variables (`let`, `var`)
 - Function parameters
 - Non-entry-point function names
@@ -713,6 +737,7 @@ Use `--mangle-external-bindings` only if you don't use WebGPU's binding reflecti
 - Type alias names
 
 ### Syntax Optimizations (with `--minify-syntax`)
+
 - Numeric literal shortening: `0.5` → `.5`, `1.0` → `1.`
 - Scientific notation: `1000000.0` → `1e6`
 - Vector constructor shorthand: `vec3<f32>` → `vec3f`
@@ -729,17 +754,17 @@ Source → Lexer → Parser → AST → Minifier → Printer → Output
 
 ### Packages
 
-| Package | Description |
-|---------|-------------|
-| `internal/lexer` | Tokenizes WGSL source (Unicode XID, nested comments) |
-| `internal/parser` | Recursive descent parser with symbol table |
-| `internal/ast` | Complete WGSL AST types |
-| `internal/renamer` | Frequency-based identifier renaming |
-| `internal/printer` | Code generation with minification |
-| `internal/reflect` | Shader reflection and memory layout computation |
-| `internal/minifier` | Orchestrates the minification pipeline |
-| `pkg/api` | Public API for programmatic use |
-| `cmd/miniray` | CLI entry point |
+| Package             | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| `internal/lexer`    | Tokenizes WGSL source (Unicode XID, nested comments) |
+| `internal/parser`   | Recursive descent parser with symbol table           |
+| `internal/ast`      | Complete WGSL AST types                              |
+| `internal/renamer`  | Frequency-based identifier renaming                  |
+| `internal/printer`  | Code generation with minification                    |
+| `internal/reflect`  | Shader reflection and memory layout computation      |
+| `internal/minifier` | Orchestrates the minification pipeline               |
+| `pkg/api`           | Public API for programmatic use                      |
+| `cmd/miniray`       | CLI entry point                                      |
 
 ## Development
 
@@ -759,7 +784,9 @@ make build-all
 
 ## WGSL Spec Compliance
 
-This minifier targets WGSL as specified in the [WebGPU Shading Language](https://www.w3.org/TR/WGSL/) specification. Key considerations:
+This minifier targets WGSL as specified in the
+[WebGPU Shading Language](https://www.w3.org/TR/WGSL/) specification. Key
+considerations:
 
 - Identifiers use Unicode XID_Start/XID_Continue
 - Block comments can nest (`/* /* nested */ */`)

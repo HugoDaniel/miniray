@@ -76,32 +76,154 @@ valid := api.ValidateWithOptions(source, opts)  // Validation with options
 ```
 
 ### C Library (FFI)
+
+Build: `make lib` → `build/libminiray.a` + `build/libminiray.h`
+
+#### Function Signatures
+
 ```c
 #include "libminiray.h"
 
-char *code, *json;
-int code_len, json_len;
+// Minify WGSL source code
+// Returns: 0=success, 1=json_encode_failed, 2=null_input
+int miniray_minify(
+    const char* source,      // WGSL source (not null-terminated required)
+    int source_len,          // Length of source in bytes
+    const char* options,     // JSON options (nullable)
+    int options_len,         // Length of options (0 if null)
+    char** out_code,         // Output: minified WGSL (caller must free)
+    int* out_code_len,       // Output: length of minified code
+    char** out_json,         // Output: result JSON (caller must free)
+    int* out_json_len        // Output: length of JSON
+);
 
-// Minify with default options
-int err = miniray_minify(source, strlen(source), NULL, 0,
-                         &code, &code_len, &json, &json_len);
+// Reflect on WGSL source (extract bindings, structs, entry points)
+// Returns: 0=success, 1=json_encode_failed, 2=null_input
+int miniray_reflect(
+    const char* source,      // WGSL source
+    int source_len,          // Length of source
+    char** out_json,         // Output: reflection JSON (caller must free)
+    int* out_json_len        // Output: length of JSON
+);
 
-// Reflection only
-err = miniray_reflect(source, strlen(source), &json, &json_len);
+// Minify and reflect in one call (includes mapped identifier names)
+// Returns: 0=success, 1=json_encode_failed, 2=null_input
+int miniray_minify_and_reflect(
+    const char* source,      // WGSL source
+    int source_len,          // Length of source
+    const char* options,     // JSON options (nullable)
+    int options_len,         // Length of options (0 if null)
+    char** out_code,         // Output: minified WGSL (caller must free)
+    int* out_code_len,       // Output: length of minified code
+    char** out_json,         // Output: reflection JSON (caller must free)
+    int* out_json_len        // Output: length of JSON
+);
 
 // Semantic validation
-err = miniray_validate(source, strlen(source), NULL, 0, &json, &json_len);
-// json: {"valid":true/false,"diagnostics":[...],"errorCount":N,"warningCount":N}
+// Returns: 0=success, 1=json_encode_failed, 2=null_input
+int miniray_validate(
+    const char* source,      // WGSL source
+    int source_len,          // Length of source
+    const char* options,     // JSON options (nullable)
+    int options_len,         // Length of options (0 if null)
+    char** out_json,         // Output: validation JSON (caller must free)
+    int* out_json_len        // Output: length of JSON
+);
 
-// Combined minify + reflect (mapped names included)
-err = miniray_minify_and_reflect(source, strlen(source), NULL, 0,
-                                  &code, &code_len, &json, &json_len);
+// Free memory allocated by miniray functions
+void miniray_free(void* ptr);
 
-miniray_free(code);
-miniray_free(json);
+// Get library version (static string, do NOT free)
+const char* miniray_version(void);
 ```
 
-Build: `make lib` → `build/libminiray.a` + `build/libminiray.h`
+#### Memory Ownership
+
+- All `out_*` parameters are allocated by miniray (Go heap)
+- Caller MUST call `miniray_free()` on returned pointers
+- Do NOT use `free()` - memory is managed by Go runtime
+- Do NOT access memory after calling `miniray_free()`
+
+#### Reflection JSON Format
+
+```json
+{
+  "bindings": [{
+    "group": 0,
+    "binding": 0,
+    "name": "uniforms",
+    "nameMapped": "a",           // Only with minify_and_reflect
+    "addressSpace": "uniform",   // "uniform" or "storage"
+    "type": "Uniforms",
+    "typeMapped": "b",           // Only with minify_and_reflect
+    "layout": {
+      "size": 16,
+      "alignment": 16,
+      "fields": [{
+        "name": "time",
+        "type": "f32",
+        "offset": 0,
+        "size": 4,
+        "alignment": 4
+      }]
+    },
+    "array": {                   // Present for array types
+      "elementType": "Particle",
+      "elementTypeMapped": "c",  // Only with minify_and_reflect
+      "elementStride": 32,
+      "elementCount": 1000,      // null for runtime-sized
+      "elementLayout": { ... }   // Layout of element struct
+    }
+  }],
+  "structs": {
+    "Uniforms": { "size": 16, "alignment": 16, "fields": [...] }
+  },
+  "entryPoints": [{
+    "name": "main",
+    "stage": "compute",          // "vertex", "fragment", or "compute"
+    "workgroupSize": [64, 1, 1]  // Only for compute
+  }],
+  "errors": [{                   // Parse errors (if any)
+    "message": "unexpected token",
+    "line": 5,
+    "column": 12
+  }]
+}
+```
+
+#### Basic Usage
+
+```c
+#include "libminiray.h"
+#include <stdio.h>
+#include <string.h>
+
+int main() {
+    const char* source = "@vertex fn main() -> @builtin(position) vec4f { return vec4f(0.); }";
+    char *code = NULL, *json = NULL;
+    int code_len = 0, json_len = 0;
+
+    // Minify with default options
+    int err = miniray_minify(source, strlen(source), NULL, 0,
+                             &code, &code_len, &json, &json_len);
+    if (err == 0) {
+        printf("Minified (%d bytes): %.*s\n", code_len, code_len, code);
+        miniray_free(code);
+        miniray_free(json);
+    }
+
+    // Reflection only
+    err = miniray_reflect(source, strlen(source), &json, &json_len);
+    if (err == 0) {
+        printf("Reflection: %.*s\n", json_len, json);
+        miniray_free(json);
+    }
+
+    return 0;
+}
+```
+
+Link with: `gcc -o myapp myapp.c -L./build -lminiray -lpthread -lm`
 
 ## Options Reference
 
@@ -399,28 +521,60 @@ if (err == 0) {
 ```
 
 ```zig
-// Zig FFI example
+// Zig FFI example (simplified from PNGine's miniray_ffi.zig)
 const c = @cImport({
     @cInclude("libminiray.h");
 });
 
-pub fn minifyShader(source: []const u8) ![]const u8 {
-    var code: [*c]u8 = null;
-    var code_len: c_int = 0;
-    var json: [*c]u8 = null;
-    var json_len: c_int = 0;
+/// Result wrapper for FFI calls. Holds C-allocated memory.
+pub const FfiResult = struct {
+    json: []const u8,
 
-    const err = c.miniray_minify(
-        @ptrCast(source.ptr), @intCast(source.len),
-        null, 0,
-        &code, &code_len,
-        &json, &json_len
+    pub fn deinit(self: *FfiResult) void {
+        c.miniray_free(@ptrCast(@constCast(self.json.ptr)));
+        self.* = undefined;
+    }
+};
+
+/// Reflect on WGSL source. Caller must call result.deinit().
+pub fn reflectFfi(source: []const u8) !FfiResult {
+    var out_json: [*c]u8 = undefined;
+    var out_len: c_int = 0;
+
+    const result = c.miniray_reflect(
+        @ptrCast(@constCast(source.ptr)),
+        @intCast(source.len),
+        &out_json,
+        &out_len,
     );
 
-    if (err != 0) return error.MinifyFailed;
-    defer c.miniray_free(json);
+    return switch (result) {
+        0 => FfiResult{ .json = out_json[0..@intCast(out_len)] },
+        1 => error.JsonEncodeFailed,
+        2 => error.NullInput,
+        else => error.UnknownError,
+    };
+}
 
-    return code[0..@intCast(code_len)];
+// Usage:
+// var result = try reflectFfi(wgsl_source);
+// defer result.deinit();
+// // Parse result.json...
+```
+
+**Zig Build Integration** (build.zig):
+```zig
+// Add miniray library to your module
+const miniray_lib = b.option([]const u8, "miniray-lib", "Path to libminiray.a");
+if (miniray_lib) |lib_path| {
+    module.addObjectFile(.{ .cwd_relative = lib_path });
+    module.addIncludePath(.{ .cwd_relative = "path/to/miniray/build" });
+    module.link_libc = true;
+    if (target.result.os.tag == .macos) {
+        module.linkFramework("CoreFoundation", .{});
+        module.linkFramework("Security", .{});
+    }
+    module.linkSystemLibrary("pthread", .{});
 }
 ```
 
