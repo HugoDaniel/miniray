@@ -15,33 +15,34 @@ npm install miniray
 ## Quick Start
 
 ```javascript
-import { initialize, minify, validate, reflect } from 'miniray';
+import { initialize, minify, reflect, validate } from "miniray";
 
 await initialize();
 
 // Minify
 const result = minify(source);
-console.log(result.code);  // Minified WGSL
+console.log(result.code); // Minified WGSL
 
 // Validate
 const validation = validate(source);
-console.log(validation.valid);  // true/false
+console.log(validation.valid); // true/false
 
 // Reflect
 const info = reflect(source);
-console.log(info.bindings);     // Uniform/storage bindings
-console.log(info.entryPoints);  // Entry point metadata
+console.log(info.bindings); // Uniform/storage bindings
+console.log(info.entryPoints); // Entry point metadata
 ```
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Minification** | Whitespace removal, identifier renaming, dead code elimination |
-| **Validation** | Type checking, symbol resolution, uniformity analysis |
-| **Reflection** | Extract bindings, struct layouts, entry points |
-| **Source Maps** | Debug minified shaders with v3 source maps |
-| **Multi-platform** | CLI, Go library, npm/WASM, C library (FFI) |
+| Feature            | Description                                                    |
+| ------------------ | -------------------------------------------------------------- |
+| **Minification**   | Whitespace removal, identifier renaming, dead code elimination |
+| **Validation**     | Type checking, symbol resolution, uniformity analysis          |
+| **Reflection**     | Extract bindings, struct layouts, entry points                 |
+| **Source Maps**    | Debug minified shaders with v3 source maps                     |
+| **Multi-platform** | CLI, Go library, npm/WASM, C library (FFI)                     |
+| **Well tested**    | >99% test coverage, validated against Dawn Tint test suite     |
 
 ## Installation
 
@@ -92,15 +93,15 @@ miniray --source-map shader.wgsl -o shader.min.wgsl
 
 ### CLI Options
 
-| Flag | Description |
-|------|-------------|
-| `-o <file>` | Output file (default: stdout) |
-| `--no-mangle` | Don't rename identifiers |
+| Flag                         | Description                          |
+| ---------------------------- | ------------------------------------ |
+| `-o <file>`                  | Output file (default: stdout)        |
+| `--no-mangle`                | Don't rename identifiers             |
 | `--mangle-external-bindings` | Rename uniform/storage vars directly |
-| `--keep-names <names>` | Preserve specific names |
-| `--no-tree-shaking` | Keep unused declarations |
-| `--source-map` | Generate source map |
-| `--config <file>` | Use config file |
+| `--keep-names <names>`       | Preserve specific names              |
+| `--no-tree-shaking`          | Keep unused declarations             |
+| `--source-map`               | Generate source map                  |
+| `--config <file>`            | Use config file                      |
 
 ### Subcommands
 
@@ -117,23 +118,29 @@ miniray reflect --compact shader.wgsl
 
 ## What Gets Preserved
 
-| Always Preserved | Minified |
-|------------------|----------|
-| Entry point names (`@vertex`, `@fragment`, `@compute`) | Local variables |
-| `@builtin` names | Function parameters |
-| `@location` members | Helper functions |
-| `@group`/`@binding` indices | Private structs |
-| `override` names | Type aliases |
-| Uniform/storage var names* | |
+| Always Preserved                                       | Minified            |
+| ------------------------------------------------------ | ------------------- |
+| Entry point names (`@vertex`, `@fragment`, `@compute`) | Local variables     |
+| `@builtin` names                                       | Function parameters |
+| `@location` members                                    | Helper functions    |
+| `@group`/`@binding` indices                            | Private structs     |
+| `override` names                                       | Type aliases        |
+| Uniform/storage var names*                             |                     |
 
 *Use `--mangle-external-bindings` to also minify uniform/storage names.
 
 ## JavaScript/TypeScript API
 
 ```javascript
-import { initialize, minify, validate, reflect, minifyAndReflect } from 'miniray';
+import {
+  initialize,
+  minify,
+  minifyAndReflect,
+  reflect,
+  validate,
+} from "miniray";
 
-await initialize({ wasmURL: '/miniray.wasm' });
+await initialize({ wasmURL: "/miniray.wasm" });
 
 // Minify with options
 const result = minify(source, {
@@ -141,10 +148,10 @@ const result = minify(source, {
   minifyIdentifiers: true,
   minifySyntax: true,
   treeShaking: true,
-  keepNames: ['myHelper'],
+  keepNames: ["myHelper"],
 });
 
-// Validate
+// Validate (strictMode treats warnings as errors)
 const validation = validate(source, { strictMode: true });
 if (!validation.valid) {
   for (const d of validation.diagnostics) {
@@ -231,6 +238,7 @@ Create `miniray.json` in your project:
 ```
 
 Pre-built configs available in `configs/`:
+
 - `compute.toys.json` - For [compute.toys](https://compute.toys) shaders
 - `pngine.json` - For [PNGine](https://github.com/HugoDaniel/pngine)
 
@@ -264,4 +272,4 @@ make test       # Run tests
 
 ## License
 
-MIT - See [LICENSE](LICENSE)
+CC0 Public Domain - See [LICENSE](LICENSE)
