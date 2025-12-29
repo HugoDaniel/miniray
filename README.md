@@ -265,6 +265,7 @@ make test       # Run tests
 
 ## Documentation
 
+- [Why minify WGSL?](docs/why-minify-wgsl.md) - Benefits of shader minification
 - [npm package docs](npm/miniray/README.md) - JavaScript/TypeScript API
 - [C API docs](docs/C-API.md) - C library reference
 - [Building with miniray](BUILDING_WITH_MINIRAY.md) - Integration guide
