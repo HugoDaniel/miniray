@@ -1,5 +1,7 @@
 # miniray
 
+> **⚠️ DEPRECATED** — miniray is no longer maintained. Use **[wgslender](https://github.com/HugoDaniel/wgslender)** instead, a high-performance WGSL minifier, validator, and linter written in Zig with better performance and more features. Wgslender is published on [crates.io](https://crates.io/crates/wgslender), [npm](https://www.npmjs.com/package/wgslender), [Go proxy](https://pkg.go.dev/github.com/HugoDaniel/wgslender), and [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=hugodaniel.wgslender).
+
 A high-performance WGSL minifier, validator, and reflection tool.
 
 **[Try the online demo](https://hugodaniel.com/pages/miniray/)**
